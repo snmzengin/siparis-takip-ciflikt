@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sapanca Çiftlik Restoran</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ── MOBİL TOPBAR ── -->
+  <div class="mobile-topbar">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <span></span><span></span><span></span>
+    </button>
+    <span id="mobile-title">Siparişler</span>
+  </div>
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand" onclick="switchTab('orders')">
+      <div class="brand-avatar">ÇR</div>
+      <div class="brand-text">
+        <span class="brand-sub">Sapanca</span>
+        <span class="brand-main">Çiftlik Restoran</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="orders">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></span>
+        <span>Siparişler</span>
+      </button>
+      <button class="nav-item" data-tab="garden">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+        <span>Bahçe Haritası</span>
+      </button>
+      <button class="nav-item" data-tab="bungalov">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 22V12h6v10"/></svg></span>
+        <span>Bungalov</span>
+      </button>
+      <button class="nav-item" data-tab="stock">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Stok</span>
+      </button>
+      <button class="nav-item" data-tab="menu">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3z"/><path d="M21 15v7"/></svg></span>
+        <span>Menü Yönetimi</span>
+      </button>
+      <button class="nav-item" data-tab="ingredients">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+        <span>Malzemeler</span>
+      </button>
+      <button class="nav-item" data-tab="expenses">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-3-3L3 17.6"/></svg></span>
+        <span>Giderler</span>
+      </button>
+      <button class="nav-item" data-tab="report">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></span>
+        <span>Günlük Rapor</span>
+      </button>
+      <button class="nav-item" data-tab="waiters">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Garsonlar</span>
+      </button>
+      <button class="nav-item" data-tab="printers">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
+        <span>Fiş Yazıcıları</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-order-btn">
+      <a href="/garson" target="_blank" class="order-entry-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Sipariş Giriş
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-clock" id="sidebar-clock">--:--</div>
+      <div class="sidebar-date"  id="sidebar-date"></div>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <!-- ── ANA İÇERİK ── -->
+  <main class="main-wrap">
+
+    <!-- ═══ SİPARİŞLER ════════════════════════════════════════════════════ -->
+    <section id="tab-orders" class="tab active">
+      <div class="page-header">
+        <div>
+          <h2>Siparişler</h2>
+          <p class="page-sub">Aktif ve geçmiş masa siparişleri</p>
+        </div>
+        <button class="btn primary" onclick="openNewOrderModal()">+ Yeni Sipariş</button>
+      </div>
+
+      <div id="low-stock-banner" class="hidden"></div>
+
+      <div id="stats-bar" class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div>
+            <span class="stat-num" id="stat-active">0</span>
+            <span class="stat-label">Aktif Masa</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          </div>
+          <div>
+            <span class="stat-num" id="stat-revenue">₺0</span>
+            <span class="stat-label">Aktif Toplam</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
+          </div>
+          <div>
+            <span class="stat-num" id="stat-today">₺0</span>
+            <span class="stat-label">Bugün Kazanılan</span>
+          </div>
+        </div>
+        <div class="stat-card stat-nakit">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+          </div>
+          <div>
+            <span class="stat-num" id="stat-nakit">₺0</span>
+            <span class="stat-label">Nakit</span>
+          </div>
+        </div>
+        <div class="stat-card stat-kart">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          </div>
+          <div>
+            <span class="stat-num" id="stat-kart">₺0</span>
+            <span class="stat-label">Kart</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-filter">
+        <button class="filter-btn active" data-filter="Aktif">Aktif</button>
+        <button class="filter-btn" data-filter="Ödendi">Ödendi</button>
+        <button class="filter-btn" data-filter="all">Tümü</button>
+      </div>
+
+      <div id="orders-list" class="orders-grid"></div>
+    </section>
+
+    <!-- ═══ BAHÇE HARİTASI ══════════════════════════════════════════════ -->
+    <section id="tab-garden" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Bahçe Haritası</h2>
+          <p class="page-sub">Masa doluluk durumu</p>
+        </div>
+        <button class="btn sm" onclick="loadOrders()">↻ Yenile</button>
+      </div>
+      <div class="garden-legend">
+        <span class="legend-item empty">Boş</span>
+        <span class="legend-item aktif">Dolu (Aktif Sipariş)</span>
+      </div>
+      <div id="garden-map" class="garden-map"></div>
+    </section>
+
+    <!-- ═══ BUNGALOV ════════════════════════════════════════════════════ -->
+    <section id="tab-bungalov" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Bungalov Hesapları</h2>
+          <p class="page-sub">Misafir cari hesap takibi</p>
+        </div>
+        <button class="btn sm" onclick="loadBungalov()">↻ Yenile</button>
+      </div>
+      <div id="bungalov-grid" class="bungalov-grid"></div>
+      <div class="page-header" style="margin-top:36px">
+        <div>
+          <h3 style="font-size:1rem;color:#0f4f4a;font-weight:700">Geçmiş Hesaplar</h3>
+        </div>
+        <button class="btn sm" onclick="loadBungalovHistory()">Yükle</button>
+      </div>
+      <div id="bungalov-history"></div>
+    </section>
+
+    <!-- ═══ STOK ════════════════════════════════════════════════════════ -->
+    <section id="tab-stock" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Stok Yönetimi</h2>
+          <p class="page-sub">Ürün stok takibi ve uyarılar</p>
+        </div>
+        <button class="btn primary" onclick="openStockModal()">+ Stok Kalemi Ekle</button>
+      </div>
+      <div id="stock-alerts-section"></div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Ürün</th><th>Miktar</th><th>Birim</th><th>Min. Uyarı</th><th>Menü Bağlantısı</th><th>İşlem</th></tr>
+          </thead>
+          <tbody id="stock-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ MENÜ ════════════════════════════════════════════════════════ -->
+    <section id="tab-menu" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Menü Yönetimi</h2>
+          <p class="page-sub">Ürün ve fiyat yönetimi</p>
+        </div>
+        <button class="btn primary" onclick="openMenuModal()">+ Ürün Ekle</button>
+      </div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Ürün</th><th>Kategori</th><th>Fiyat</th><th>Maliyet</th><th>Kâr</th><th>Kâr%</th><th>İşlem</th></tr>
+          </thead>
+          <tbody id="menu-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ MALZEMELER ════════════════════════════════════════════════ -->
+    <section id="tab-ingredients" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Malzemeler</h2>
+          <p class="page-sub">Reçetelerde kullanılan hammaddeler ve birim fiyatları — ürün maliyeti buradan hesaplanır</p>
+        </div>
+        <button class="btn primary" onclick="openIngredientModal()">+ Malzeme Ekle</button>
+      </div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Malzeme</th><th>Birim</th><th>Birim Fiyat</th><th>İşlem</th></tr>
+          </thead>
+          <tbody id="ingredients-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ GİDERLER ════════════════════════════════════════════════ -->
+    <section id="tab-expenses" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Giderler</h2>
+          <p class="page-sub">Metro, Macrocenter vb. alışverişler ve diğer işletme giderleri</p>
+        </div>
+      </div>
+
+      <div class="expense-form">
+        <div class="form-row"><label>Tarih</label><input id="expense-date" type="date" /></div>
+        <div class="form-row"><label>Satıcı</label><input id="expense-vendor" type="text" placeholder="örn: Metro" /></div>
+        <div class="form-row">
+          <label>Kategori</label>
+          <select id="expense-category">
+            <option>Gıda</option>
+            <option>İçecek</option>
+            <option>Temizlik</option>
+            <option>Fatura</option>
+            <option>Bakım/Onarım</option>
+            <option>Diğer</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Açıklama</label><input id="expense-description" type="text" placeholder="örn: Haftalık market alışverişi" /></div>
+        <div class="form-row"><label>Tutar (₺)</label><input id="expense-amount" type="number" min="0" step="0.5" placeholder="örn: 3500" /></div>
+        <div class="form-row"><label>Fatura Görseli (opsiyonel)</label><input id="expense-receipt" type="file" accept="image/*,.pdf" /></div>
+        <button class="btn primary" onclick="addExpense()">Gider Ekle</button>
+      </div>
+
+      <div class="expense-list-header">
+        <h3>Son Giderler</h3>
+        <div id="expense-total-badge" class="expense-total-badge"></div>
+      </div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Tarih</th><th>Satıcı</th><th>Kategori</th><th>Açıklama</th><th>Tutar</th><th>Fatura</th><th></th></tr>
+          </thead>
+          <tbody id="expenses-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ GARSONLAR ════════════════════════════════════════════════ -->
+    <section id="tab-waiters" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Garsonlar</h2>
+          <p class="page-sub">PIN yönetimi</p>
+        </div>
+      </div>
+      <div id="waiters-list" class="waiters-grid"></div>
+    </section>
+
+    <!-- ═══ FİŞ YAZICILARI ══════════════════════════════════════════ -->
+    <section id="tab-printers" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Fiş Yazıcıları</h2>
+          <p class="page-sub">Sunucu bulutta çalıştığı için yazıcılara doğrudan bağlanamıyor — dükkândaki bilgisayarda çalışan "print-agent" bu fişleri alıp yazıcıya gönderir</p>
+        </div>
+      </div>
+
+      <div class="printer-settings">
+        <div class="form-row">
+          <label>
+            <input type="checkbox" id="printer-enabled" style="width:auto;margin-right:8px" />
+            Otomatik fiş yazdırmayı etkinleştir
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>Mutfak Yazıcı IP Adresi (dükkân içi ağdaki IP)</label>
+          <div style="display:flex;gap:8px">
+            <input id="printer-mutfak-ip" type="text" placeholder="örn: 192.168.1.50" />
+            <button class="btn" onclick="testPrinter('mutfak')">Test Yazdır</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Pizza Tezgahı Yazıcı IP Adresi (dükkân içi ağdaki IP)</label>
+          <div style="display:flex;gap:8px">
+            <input id="printer-pizza-ip" type="text" placeholder="örn: 192.168.1.51" />
+            <button class="btn" onclick="testPrinter('pizza')">Test Yazdır</button>
+          </div>
+        </div>
+
+        <button class="btn primary" onclick="savePrinterSettings()">Kaydet</button>
+        <div id="printer-status-msg" class="printer-status-msg"></div>
+
+        <div class="agent-token-box">
+          <label>Print-Agent Bağlantı Kodu (Token)</label>
+          <p class="page-sub" style="margin:2px 0 8px">Dükkândaki bilgisayarda çalışacak <code>print_agent.py</code> dosyasına bu kodu yapıştır. Kimseyle paylaşma.</p>
+          <div style="display:flex;gap:8px">
+            <input id="printer-agent-token" type="text" readonly />
+            <button class="btn" onclick="copyAgentToken()">Kopyala</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ RAPOR ════════════════════════════════════════════════ -->
+    <section id="tab-report" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Rapor</h2>
+          <p class="page-sub">Satış ve garson bazlı özet</p>
+        </div>
+        <button class="btn" onclick="window.print()">🖨 Yazdır</button>
+      </div>
+
+      <div class="report-period-tabs">
+        <button class="report-tab-btn active" onclick="switchReportPeriod('daily', this)">Günlük</button>
+        <button class="report-tab-btn" onclick="switchReportPeriod('weekly', this)">Haftalık</button>
+        <button class="report-tab-btn" onclick="switchReportPeriod('monthly', this)">Aylık</button>
+      </div>
+
+      <div class="report-date-row">
+        <input type="date" id="report-date" class="date-input" />
+        <button class="btn primary" onclick="loadReport()">Getir</button>
+      </div>
+
+      <div id="report-content"></div>
+    </section>
+
+  </main><!-- /main-wrap -->
+
+
+  <!-- ════════════════════ MODALLAR ════════════════════════════════════════ -->
+
+  <!-- Yeni Sipariş -->
+  <div id="order-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header"><h3>Yeni Sipariş</h3></div>
+      <div class="form-row">
+        <label>Masa No</label>
+        <input id="order-table" type="text" placeholder="örn: 5" />
+      </div>
+      <div class="form-row" id="bungalov-order-row" style="display:none">
+        <label>Bungalov Hesabına Ekle <span class="label-hint">(opsiyonel)</span></label>
+        <select id="order-bungalov"><option value="">— Hesaba ekleme —</option></select>
+      </div>
+      <div class="form-row">
+        <label>Garson</label>
+        <select id="order-waiter">
+          <option value="">-- Garson Seç --</option>
+          <option>Sami</option><option>Rahman</option><option>Engin</option><option>Bedirhan</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Not</label>
+        <input id="order-notes" type="text" placeholder="İsteğe bağlı not" />
+      </div>
+      <div class="menu-search-row">
+        <input id="menu-search" type="text" placeholder="🔍 Ürün ara..." oninput="filterMenuSearch()" />
+      </div>
+      <div id="menu-pick-list" class="menu-pick-list"></div>
+      <div class="selected-items-wrap" id="selected-items-wrap">
+        <h4>Seçilen Ürünler</h4>
+        <div id="selected-items"></div>
+        <div class="order-total">Toplam: <strong id="order-total">₺0,00</strong></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeOrderModal()">İptal</button>
+        <button class="btn primary" onclick="submitOrder()">Siparişi Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menü Ürün -->
+  <div id="menu-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header"><h3 id="menu-modal-title">Ürün Ekle</h3></div>
+      <input type="hidden" id="menu-edit-id" />
+      <div class="form-row"><label>Ürün Adı</label><input id="menu-name" type="text" placeholder="örn: Köfte" /></div>
+      <div class="form-row"><label>Kategori</label><input id="menu-category" type="text" placeholder="örn: Ana Yemek" /></div>
+      <div class="form-row"><label>Fiyat (₺)</label><input id="menu-price" type="number" min="0" step="0.5" placeholder="örn: 120" /></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeMenuModal()">İptal</button>
+        <button class="btn primary" onclick="saveMenuItem()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Malzeme Ekle/Düzenle -->
+  <div id="ingredient-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header"><h3 id="ingredient-modal-title">Malzeme Ekle</h3></div>
+      <input type="hidden" id="ingredient-edit-id" />
+      <div class="form-row"><label>Malzeme Adı</label><input id="ingredient-name" type="text" placeholder="örn: Mozzarella Peyniri" /></div>
+      <div class="form-row">
+        <label>Birim</label>
+        <select id="ingredient-unit">
+          <option value="kg">kg</option>
+          <option value="lt">lt</option>
+          <option value="adet">adet</option>
+          <option value="paket">paket</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Birim Fiyat (₺)</label><input id="ingredient-unit-cost" type="number" min="0" step="0.01" placeholder="örn: 400" /></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeIngredientModal()">İptal</button>
+        <button class="btn primary" onclick="saveIngredient()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ürün Reçetesi -->
+  <div id="recipe-modal" class="modal hidden">
+    <div class="modal-box recipe-box">
+      <div class="modal-header"><h3 id="recipe-modal-title">Reçete</h3></div>
+      <input type="hidden" id="recipe-menu-item-id" />
+      <div id="recipe-lines"></div>
+      <button class="btn sm" onclick="addRecipeLine()">+ Malzeme Ekle</button>
+      <div class="recipe-total">Toplam Maliyet: <strong id="recipe-total-cost">₺0</strong></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeRecipeModal()">İptal</button>
+        <button class="btn primary" onclick="saveRecipe()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ödeme Yöntemi -->
+  <div id="payment-modal" class="modal hidden">
+    <div class="modal-box payment-box">
+      <div class="modal-header"><h3>Ödeme Yöntemi</h3></div>
+      <p class="payment-subtitle">Ödeme nasıl yapıldı?</p>
+
+      <div class="discount-row">
+        <label class="discount-label">İndirim (₺)</label>
+        <input type="number" id="discount-input" min="0" step="1" placeholder="0"
+               oninput="updatePaymentTotal()" class="discount-input" />
+        <span class="discount-total">Ödenecek: <strong id="payment-final-total"></strong></span>
+      </div>
+
+      <div class="payment-options" id="payment-options">
+        <button class="payment-opt nakit" onclick="confirmPayment('Nakit')">
+          <!-- Lucide: wallet -->
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+          </svg>
+          <span>Nakit</span>
+        </button>
+        <button class="payment-opt kart" onclick="confirmPayment('Kredi Kartı')">
+          <!-- Lucide: credit-card -->
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
+          <span>Kredi Kartı</span>
+        </button>
+        <button class="payment-opt karma" onclick="showSplitPayment()">
+          <!-- Lucide: shuffle -->
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/>
+            <path d="m18 2 4 4-4 4"/>
+            <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/>
+            <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.7l-.5-.8"/>
+            <path d="m18 14 4 4-4 4"/>
+          </svg>
+          <span>Karma</span>
+        </button>
+      </div>
+      <div id="split-payment-form" class="hidden">
+        <p class="split-total-info">Toplam: <strong id="split-total-display"></strong></p>
+        <div class="form-row"><label>Nakit (₺)</label><input id="split-cash" type="number" min="0" step="0.5" placeholder="0" oninput="updateSplitCard()" /></div>
+        <div class="form-row"><label>Kredi Kartı (₺)</label><input id="split-card" type="number" min="0" step="0.5" placeholder="0" oninput="updateSplitCash()" /></div>
+        <button class="btn primary full-width" onclick="confirmSplitPayment()">Onayla</button>
+        <button class="btn full-width" style="margin-top:6px" onclick="hideSplitPayment()">← Geri</button>
+      </div>
+      <div class="modal-actions"><button class="btn" onclick="closePaymentModal()">İptal</button></div>
+    </div>
+  </div>
+
+  <!-- Masa Değiştir -->
+  <div id="table-change-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:360px">
+      <div class="modal-header"><h3>Masa Değiştir</h3></div>
+      <input type="hidden" id="table-change-order-id" />
+      <p style="font-size:0.88rem;color:#6b8e8b;margin-bottom:16px">
+        Mevcut masa: <strong id="table-change-current"></strong>
+      </p>
+      <div class="form-row">
+        <label>Yeni Masa</label>
+        <select id="table-change-select">
+          <option value="">-- Masa Seç --</option>
+          <optgroup label="Sağ">
+            <option>sağ 1</option><option>sağ 2</option><option>sağ 3</option>
+            <option>sağ 4</option><option>sağ 5</option><option>sağ 6</option><option>sağ 7</option>
+          </optgroup>
+          <optgroup label="Orta">
+            <option>orta 1</option><option>orta 2</option><option>orta 3</option>
+            <option>orta 4</option><option>orta 5</option><option>orta 6</option>
+          </optgroup>
+          <optgroup label="Sol">
+            <option>sol 1</option><option>sol 2</option><option>sol 3</option>
+            <option>sol 4</option><option>sol 5</option><option>sol 6</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="hideModal('table-change-modal')">İptal</button>
+        <button class="btn primary" onclick="confirmTableChange()">Taşı</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Masa Detay -->
+  <div id="table-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header"><h3 id="table-modal-title">Masa</h3></div>
+      <div id="table-modal-content"></div>
+      <div class="modal-actions">
+        <button class="btn danger" id="table-modal-delete-btn">Siparişi Sil</button>
+        <button class="btn" onclick="closeTableModal()">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stok -->
+  <div id="stock-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header"><h3 id="stock-modal-title">Stok Kalemi Ekle</h3></div>
+      <input type="hidden" id="stock-edit-id" />
+      <div class="form-row"><label>Ürün Adı</label><input id="stock-name" type="text" placeholder="örn: Kola" /></div>
+      <div class="form-2col">
+        <div class="form-row"><label>Miktar</label><input id="stock-qty" type="number" min="0" step="0.5" placeholder="0" /></div>
+        <div class="form-row"><label>Birim</label><input id="stock-unit" type="text" placeholder="adet / kasa / şişe / kg" /></div>
+      </div>
+      <div class="form-row">
+        <label>Min. Uyarı Miktarı <span class="label-hint">(0 = uyarı yok)</span></label>
+        <input id="stock-min" type="number" min="0" step="0.5" placeholder="0" />
+      </div>
+      <div class="form-row">
+        <label>Menü Bağlantısı <span class="label-hint">(sipariş girilince stok otomatik düşsün)</span></label>
+        <select id="stock-menu-link"><option value="">-- Bağlı değil --</option></select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeStockModal()">İptal</button>
+        <button class="btn primary" onclick="saveStockItem()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restock -->
+  <div id="restock-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:340px">
+      <div class="modal-header"><h3 id="restock-title">Stok Ekle</h3></div>
+      <p id="restock-current" class="restock-info"></p>
+      <div class="form-row"><label>Eklenecek Miktar</label><input id="restock-amount" type="number" min="0.5" step="0.5" placeholder="0" /></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeRestockModal()">İptal</button>
+        <button class="btn primary" onclick="confirmRestock()">Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bungalov Hesap Detay -->
+  <div id="bungalov-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:600px">
+      <div class="modal-header"><h3 id="bungalov-modal-title">Bungalov</h3></div>
+      <div id="bungalov-modal-content"></div>
+      <div class="modal-actions"><button class="btn" onclick="closeBungalovModal()">Kapat</button></div>
+    </div>
+  </div>
+
+  <!-- Bungalov Hesap Aç -->
+  <div id="bungalov-open-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:380px">
+      <div class="modal-header"><h3 id="bungalov-open-title">Hesap Aç</h3></div>
+      <div class="form-row"><label>Misafir Adı Soyadı</label><input id="bungalov-guest-name" type="text" placeholder="Ahmet Yılmaz" /></div>
+      <div class="form-row"><label>Giriş Tarihi</label><input id="bungalov-checkin" type="date" /></div>
+      <div class="form-row"><label>Not (opsiyonel)</label><input id="bungalov-open-notes" type="text" placeholder="" /></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeBungalovOpenModal()">İptal</button>
+        <button class="btn primary" onclick="confirmOpenAccount()">Hesabı Aç</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bungalov Masraf Ekle -->
+  <div id="bungalov-charge-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:360px">
+      <div class="modal-header"><h3>Masraf Ekle</h3></div>
+      <div class="form-row"><label>Açıklama</label><input id="charge-desc" type="text" placeholder="örn: Bar, Havuz, Çarşaf..." /></div>
+      <div class="form-row"><label>Tutar (₺)</label><input id="charge-amount" type="number" min="0" step="0.5" placeholder="0" /></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeBungalovChargeModal()">İptal</button>
+        <button class="btn primary" onclick="confirmAddCharge()">Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bungalov Çıkış -->
+  <div id="bungalov-checkout-modal" class="modal hidden">
+    <div class="modal-box" style="max-width:380px">
+      <div class="modal-header"><h3>Çıkış & Ödeme</h3></div>
+      <p id="bungalov-checkout-total" class="split-total-info"></p>
+      <div class="form-row"><label>Çıkış Tarihi</label><input id="bungalov-checkout-date" type="date" /></div>
+      <div class="form-row">
+        <label>Ödeme Yöntemi</label>
+        <select id="bungalov-checkout-payment">
+          <option value="Nakit">💵 Nakit</option>
+          <option value="Kredi Kartı">💳 Kredi Kartı</option>
+          <option value="Karma">🔀 Karma (Nakit + Kart)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeBungalovCheckoutModal()">İptal</button>
+        <button class="btn primary" onclick="confirmCheckout()">Çıkışı Tamamla</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay hidden" onclick="closeAll()"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

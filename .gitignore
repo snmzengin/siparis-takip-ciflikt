@@ -1,0 +1,16 @@
+# Veritabanı — gerçek sipariş/müşteri verisi içerir, repoya gitmemeli
+restaurant.db
+restaurant.db-journal
+
+# Yüklenen fatura görselleri — gerçek işletme verisi
+static/uploads/
+
+# Python
+__pycache__/
+*.pyc
+
+# Loglar
+*.log
+
+# Print-agent'ın gerçek sunucu adresi/token'ı (kişisel kurulum bilgisi)
+print_agent/print_agent_local.py
