@@ -33,6 +33,12 @@ AGENT_TOKEN  = "BURAYA-PANELDEKI-TOKEN-KODUNU-YAPISTIR"
 POLL_SECONDS = 3       # sunucuyu kaç saniyede bir kontrol etsin
 PRINTER_PORT = 9100    # ağ üzerinden termal yazıcıların standart portu
 
+# Kişisel kurulum bilgileri (repoya gitmeyen) print_agent_local.py'de durabilir
+try:
+    from print_agent_local import SERVER_URL, AGENT_TOKEN  # noqa: F811
+except ImportError:
+    pass
+
 
 def api_get(path):
     req = urllib.request.Request(
@@ -52,7 +58,32 @@ def api_post(path):
     urllib.request.urlopen(req, timeout=10)
 
 
+def is_ip(value):
+    try:
+        socket.inet_aton(value)
+        return value.count(".") == 3
+    except OSError:
+        return False
+
+
+def send_to_usb_printer(name, data):
+    """USB yazıcı: panelde IP yerine Windows'taki yazıcı adı yazılır (örn: Fis Yazici 1)."""
+    import win32print  # pip install pywin32
+    h = win32print.OpenPrinter(name)
+    try:
+        win32print.StartDocPrinter(h, 1, ("Fis", None, "RAW"))
+        win32print.StartPagePrinter(h)
+        win32print.WritePrinter(h, data)
+        win32print.EndPagePrinter(h)
+        win32print.EndDocPrinter(h)
+    finally:
+        win32print.ClosePrinter(h)
+
+
 def send_to_printer(ip, data):
+    if not is_ip(ip):
+        send_to_usb_printer(ip, data)
+        return
     with socket.create_connection((ip, PRINTER_PORT), timeout=5) as sock:
         sock.sendall(data)
 
@@ -74,7 +105,7 @@ def process_once():
         data = base64.b64decode(job["ticket_data"])
         try:
             send_to_printer(ip, data)
-        except OSError as e:
+        except Exception as e:
             print(f"[HATA] Fiş #{job['id']} ({station}, {ip}) basılamadı: {e} — sonraki turda tekrar denenecek")
             continue
         api_post(f"/api/print-agent/jobs/{job['id']}/ack")

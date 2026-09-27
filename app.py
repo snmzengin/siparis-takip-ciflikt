@@ -164,21 +164,24 @@ def set_setting(key, value):
 
 # ── FİŞ YAZICI (ESC/POS fiş üretimi — gerçek yazdırma dükkândaki print-agent.py'de) ──
 
-LINE_WIDTH = 32  # 58mm termal yazıcı için tipik karakter genişliği
+LINE_WIDTH = 48  # 80mm termal yazıcı için tipik karakter genişliği
 
 ESC = b"\x1b"
 GS  = b"\x1d"
 
 
+TR_ASCII = str.maketrans("çğıöşüÇĞİÖŞÜâîûÂÎÛ", "cgiosuCGIOSUaiuAIU")
+
+
 def _p(text):
-    """Fiş metnini yazıcının Türkçe kod sayfasına (PC857) çevirir."""
-    return text.encode("cp857", errors="replace")
+    """Fiş metnini düz ASCII'ye çevirir — yazıcı Türkçe karakter basamıyor (Çoban -> Coban)."""
+    return text.translate(TR_ASCII).encode("ascii", errors="replace")
 
 
 def build_ticket(title, table, waiter, items, notes):
     parts = [
         ESC + b"@",                 # yazıcıyı sıfırla
-        ESC + b"t" + bytes([6]),    # kod sayfası: PC857 (Türkçe) — yazıcıya göre değişebilir
+        b"\x1c.",                   # Çince karakter modunu kapat (Xprinter'da fabrika ayarı açık)
         ESC + b"a" + bytes([1]),    # ortala
         ESC + b"!" + bytes([0x30]), # çift genişlik + çift yükseklik
         _p(title + "\n"),
@@ -196,7 +199,8 @@ def build_ticket(title, table, waiter, items, notes):
     if notes:
         parts.append(_p("-" * LINE_WIDTH + "\n"))
         parts.append(_p(f"Not: {notes}\n"))
-    parts.append(_p("\n\n\n"))
+    parts.append(_p("\n"))
+    parts.append(ESC + b"d" + bytes([6]))  # son satırlar bıçağı geçsin diye 6 satır ilerlet
     parts.append(GS + b"V" + bytes([1]))  # kısmi kesim
     return b"".join(parts)
 
