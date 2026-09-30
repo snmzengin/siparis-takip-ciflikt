@@ -13,8 +13,8 @@
   --gold-dark:  #B9852E;
 
   --ink:        #211C12;
-  --ink-2:      #5B5140;
-  --ink-3:      #8C8270;
+  --ink-2:      #4A4132;
+  --ink-3:      #6B6250;
   --line:       rgba(33, 28, 18, 0.09);
   --line-2:     rgba(33, 28, 18, 0.14);
 
@@ -74,7 +74,7 @@ body::before {
   z-index: -1;
   /* Web sitesindeki restoran fotoğrafı, önceden bulanıklaştırılmış (static/bg-blur.jpg) */
   background:
-    linear-gradient(rgba(248, 243, 230, 0.5), rgba(248, 243, 230, 0.5)),
+    linear-gradient(rgba(248, 243, 230, 0.68), rgba(248, 243, 230, 0.68)),
     url("/static/bg-blur.jpg") center 62% / cover no-repeat;
   pointer-events: none;
 }
@@ -117,7 +117,7 @@ body::before {
 }
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
-.brand-sub  { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.brand-sub  { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
 .brand-main { font-size: 0.98rem; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
 
 .sidebar-nav {
@@ -201,7 +201,7 @@ body::before {
 
 .sidebar-date {
   font-size: 0.74rem;
-  color: var(--ink-3);
+  color: var(--ink-2);
   margin-top: 5px;
   text-transform: capitalize;
 }
@@ -291,7 +291,7 @@ body::before {
 
 .page-sub {
   font-size: 0.86rem;
-  color: var(--ink-3);
+  color: var(--ink-2);
   margin-top: 4px;
 }
 
@@ -997,7 +997,7 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
 .garden-section:last-child { border-right: none; }
 
 .garden-section-title {
-  font-size: 0.74rem; font-weight: 600; color: var(--ink-3);
+  font-size: 0.74rem; font-weight: 700; color: var(--ink-2);
   letter-spacing: 0.12em; text-transform: uppercase;
   padding: 2px 0 6px;
 }

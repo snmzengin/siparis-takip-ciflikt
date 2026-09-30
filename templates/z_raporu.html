@@ -18,8 +18,8 @@
       --gold:       #D9A441;
       --gold-dark:  #B9852E;
       --ink:        #211C12;
-      --ink-2:      #5B5140;
-      --ink-3:      #8C8270;
+      --ink-2:      #4A4132;
+      --ink-3:      #6B6250;
       --line:       rgba(33, 28, 18, 0.09);
       --line-2:     rgba(33, 28, 18, 0.14);
       --track:      rgba(33, 28, 18, 0.07);
@@ -60,7 +60,7 @@
       z-index: -1;
       /* Web sitesindeki restoran fotoğrafı, önceden bulanıklaştırılmış (static/bg-blur.jpg) */
       background:
-        linear-gradient(rgba(248, 243, 230, 0.5), rgba(248, 243, 230, 0.5)),
+        linear-gradient(rgba(248, 243, 230, 0.68), rgba(248, 243, 230, 0.68)),
         url("/static/bg-blur.jpg") center 62% / cover no-repeat;
       pointer-events: none;
     }
@@ -154,7 +154,7 @@
     .greeting { margin-bottom: 20px; }
     .greeting h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
     .greeting h1 span { color: var(--gold-dark); }
-    .greeting p { color: var(--ink-3); margin-top: 4px; font-size: 0.95rem; text-transform: capitalize; }
+    .greeting p { color: var(--ink-2); margin-top: 4px; font-size: 0.95rem; text-transform: capitalize; }
 
     .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
     .seg { display: inline-flex; padding: 3px; gap: 2px; background: rgba(33, 28, 18, 0.06); border-radius: 11px; }
@@ -172,7 +172,7 @@
     .date-nav button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.8); }
     .date-nav button:disabled { opacity: 0.3; cursor: default; }
     .date-label { font-weight: 600; font-size: 0.9rem; padding: 0 8px; min-width: 150px; text-align: center; text-transform: capitalize; }
-    .updated { font-size: 0.78rem; color: var(--ink-3); }
+    .updated { font-size: 0.78rem; color: var(--ink-2); }
     .print-actions { display: flex; gap: 8px; margin-left: auto; }
 
     .card { border-radius: 18px; padding: 20px; }
