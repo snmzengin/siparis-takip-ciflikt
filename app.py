@@ -1,14 +1,16 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
+from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import socket
 import threading
 import base64
 import secrets
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # fatura yüklemeleri için 15MB sınırı
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)  # Z Raporu girişi 30 gün hatırlanır
 DB_PATH = os.path.join(os.path.dirname(__file__), "restaurant.db")
 
 RECEIPT_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads", "expenses")
@@ -286,6 +288,309 @@ def verify_pin():
     if row:
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 401
+
+
+# ── Z RAPORU EKRANI (kullanıcı adı + şifre ile giriş) ───────────────────────────
+
+OWNERS_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS owners (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+"""
+
+
+@app.before_request
+def ensure_secret_key():
+    """Oturum anahtarını veritabanında saklar — sunucu yeniden başlasa da (ve gunicorn
+    işçileri arasında) patron girişleri geçerli kalır."""
+    if app.secret_key:
+        return
+    with get_db() as conn:
+        conn.executescript(OWNERS_SCHEMA)
+        try:
+            conn.execute("ALTER TABLE owners ADD COLUMN display_name TEXT")  # karşılama adı ("Hoş geldin, Ahmet")
+        except sqlite3.OperationalError:
+            pass
+        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('session_secret', ?)",
+                     (secrets.token_hex(32),))
+        app.secret_key = conn.execute(
+            "SELECT value FROM settings WHERE key='session_secret'").fetchone()["value"]
+
+
+def current_owner_row():
+    """Oturumdaki patronun güncel kaydı — hesap silindiyse None (oturum düşer)."""
+    owner_id = session.get("owner_id")
+    if not owner_id:
+        return None
+    with get_db() as conn:
+        return conn.execute("SELECT username, display_name FROM owners WHERE id=?", (owner_id,)).fetchone()
+
+
+def current_owner():
+    row = current_owner_row()
+    return row["username"] if row else None
+
+
+@app.route("/z-raporu")
+def z_raporu_page():
+    return render_template("z_raporu.html")
+
+
+@app.route("/api/patron/login", methods=["POST"])
+def patron_login():
+    data = request.json or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    with get_db() as conn:
+        row = conn.execute("SELECT id, username, display_name, password_hash FROM owners WHERE username=?",
+                           (username,)).fetchone()
+    if not row or not check_password_hash(row["password_hash"], password):
+        return jsonify({"ok": False, "error": "Kullanıcı adı veya şifre hatalı"}), 401
+    session.permanent = True
+    session["owner_id"] = row["id"]
+    return jsonify({"ok": True, "username": row["username"], "display_name": row["display_name"] or row["username"]})
+
+
+@app.route("/api/patron/logout", methods=["POST"])
+def patron_logout():
+    session.pop("owner_id", None)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/patron/me")
+def patron_me():
+    with get_db() as conn:
+        has_owner = conn.execute("SELECT 1 FROM owners LIMIT 1").fetchone() is not None
+    row = current_owner_row()
+    return jsonify({
+        "username":     row["username"] if row else None,
+        "display_name": (row["display_name"] or row["username"]) if row else None,
+        "has_owner":    has_owner,
+    })
+
+
+def _z_summary(period, date_str):
+    import datetime as dt
+    import calendar
+    d = dt.date.fromisoformat(date_str or dt.date.today().isoformat())
+    if period == "weekly":
+        start = d - dt.timedelta(days=d.weekday())
+        end = start + dt.timedelta(days=6)
+        prev_start, prev_end = start - dt.timedelta(days=7), end - dt.timedelta(days=7)
+    elif period == "monthly":
+        start = d.replace(day=1)
+        end = d.replace(day=calendar.monthrange(d.year, d.month)[1])
+        prev_end = start - dt.timedelta(days=1)
+        prev_start = prev_end.replace(day=1)
+    else:
+        period = "daily"
+        start = end = d
+        prev_start = prev_end = d - dt.timedelta(days=1)
+
+    report = _report_for_range(start.isoformat(), end.isoformat())
+    prev = _report_for_range(prev_start.isoformat(), prev_end.isoformat())
+    rng = (start.isoformat(), end.isoformat())
+    with get_db() as conn:
+        active = conn.execute(
+            "SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS amount FROM orders WHERE status='Aktif'"
+        ).fetchone()
+        # "Kahvaltı" kategorisindeki ürünler (menüden silinmişse ürün adından yakalanır)
+        breakfast_items = conn.execute("""
+            SELECT oi.item_name,
+                   SUM(oi.quantity)                 AS total_qty,
+                   SUM(oi.item_price * oi.quantity) AS total_amount
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+            WHERE DATE(o.created_at, '+3 hours') BETWEEN ? AND ? AND o.status = 'Ödendi'
+              AND (mi.category LIKE '%ahvalt%' OR oi.item_name LIKE '%ahvalt%')
+            GROUP BY oi.item_name ORDER BY total_qty DESC
+        """, rng).fetchall()
+    # Servis ayrımı ürüne göre: kahvaltı ürünleri kahvaltı servisi, geri kalan her şey akşam servisi
+    breakfast_items = [dict(r) for r in breakfast_items]
+    breakfast_total = round(sum(i["total_amount"] for i in breakfast_items), 2)
+    items_total = sum(i["total_amount"] or 0 for i in report["items"])
+    report.update({
+        "breakfast_items": breakfast_items,
+        "breakfast_qty":   sum(i["total_qty"] for i in breakfast_items),
+        "breakfast_total": breakfast_total,
+        "dinner_total":    round(max(0, items_total - breakfast_total), 2),
+        "period":        period,
+        "prev_total":    prev["total_amount"],
+        "active_count":  active["cnt"],
+        "active_amount": active["amount"],
+        "other_total":   round(max(0, report["total_amount"] - report["nakit_total"] - report["kart_total"]), 2),
+    })
+    return report
+
+
+@app.route("/api/patron/summary")
+def patron_summary():
+    if not current_owner():
+        return jsonify({"error": "Giriş gerekli"}), 401
+    return jsonify(_z_summary(request.args.get("period", "daily"), request.args.get("date")))
+
+
+def _money(v):
+    """12345.5 -> '12.345,50 TL'"""
+    return f"{v or 0:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " TL"
+
+
+def _row(left, right, width=None):
+    """Solda açıklama, sağda tutar — fiş satırını tam genişliğe yayar."""
+    width = width or LINE_WIDTH
+    left = left[: width - len(right) - 1]
+    return left + " " * (width - len(left) - len(right)) + right + "\n"
+
+
+def build_z_ticket(r, username):
+    """Z Raporu özetini POS fişi görünümünde ESC/POS baytlarına çevirir."""
+    import datetime as dt
+    f = dt.date.fromisoformat(r["date_from"]).strftime("%d.%m.%Y")
+    t = dt.date.fromisoformat(r["date_to"]).strftime("%d.%m.%Y")
+    period_name = {"daily": "Gunluk", "weekly": "Haftalik", "monthly": "Aylik"}[r["period"]]
+    line = "-" * LINE_WIDTH + "\n"
+
+    def section(title):
+        pad = LINE_WIDTH - len(title) - 2
+        return "-" * (pad // 2) + " " + title + " " + "-" * (pad - pad // 2) + "\n"
+
+    body = line
+    body += _row("Donem", f if f == t else f"{f} - {t}")
+    body += _row("Rapor turu", period_name)
+    body += _row("Yazdirma", datetime.now().strftime("%d.%m.%Y %H:%M"))
+    body += _row("Kullanici", username)
+    body += line
+    body += _row("Kapanan adisyon", str(r["total_orders"]))
+    avg = r["total_amount"] / r["total_orders"] if r["total_orders"] else 0
+    body += _row("Ortalama adisyon", _money(avg))
+    body += _row("Acik masa", f"{r['active_count']} ({_money(r['active_amount'])})")
+    body += section("ODEME DAGILIMI")
+    body += _row("Nakit", _money(r["nakit_total"]))
+    body += _row("Kredi Karti", _money(r["kart_total"]))
+    if r["other_total"] > 0.5:
+        body += _row("Diger", _money(r["other_total"]))
+    body += section("SERVIS DAGILIMI")
+    body += _row("Kahvalti servisi", _money(r["breakfast_total"]))
+    body += _row("Aksam yemegi servisi", _money(r["dinner_total"]))
+    body += section("KAHVALTI SATISI")
+    for it in r["breakfast_items"]:
+        body += _row(f"{it['total_qty']} x {it['item_name']}", _money(it["total_amount"]))
+    body += _row(f"Toplam {r['breakfast_qty']} porsiyon", _money(r["breakfast_total"]))
+    body += section("GARSON SATISLARI")
+    for w in r["waiters"]:
+        body += _row(f"{w['waiter']} ({w['order_count']} adisyon)", _money(w["total_amount"]))
+    if not r["waiters"]:
+        body += "Satis yok\n"
+    body += section("URUN SATISLARI")
+    for it in r["items"]:
+        body += _row(f"{it['total_qty']} x {it['item_name']}", _money(it["total_amount"]))
+    if not r["items"]:
+        body += "Satis yok\n"
+    body += section("GIDER / NET")
+    body += _row("Giderler", _money(r["expense_total"]))
+    body += _row("Net (satis - gider)", _money(r["net_amount"]))
+    body += line
+
+    parts = [
+        ESC + b"@",
+        b"\x1c.",                   # Çince karakter modunu kapat
+        ESC + b"a" + bytes([1]),    # ortala
+        _p("SAPANCA CIFTLIK RESTORAN\n"),
+        ESC + b"!" + bytes([0x30]), # çift boy
+        _p("Z RAPORU\n"),
+        ESC + b"!" + bytes([0x00]),
+        ESC + b"a" + bytes([0]),
+        _p(body),
+        ESC + b"!" + bytes([0x30]), # toplam çift boy: yarım genişlikte satır
+        _p(_row("TOPLAM", _money(r["total_amount"]), LINE_WIDTH // 2)),
+        ESC + b"!" + bytes([0x00]),
+        _p(line),
+        ESC + b"a" + bytes([1]),
+        _p("MALI DEGERI YOKTUR - BILGI FISIDIR\n"),
+        ESC + b"a" + bytes([0]),
+        ESC + b"d" + bytes([6]),    # son satırlar bıçağı geçsin
+        GS + b"V" + bytes([1]),
+    ]
+    return b"".join(parts)
+
+
+@app.route("/api/patron/print", methods=["POST"])
+def patron_print():
+    username = current_owner()
+    if not username:
+        return jsonify({"error": "Giriş gerekli"}), 401
+    data = request.json or {}
+    report = _z_summary(data.get("period", "daily"), data.get("date"))
+    ticket = build_z_ticket(report, username)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO print_queue (station, ticket_data, status) VALUES ('mutfak', ?, 'pending')",
+            (base64.b64encode(ticket).decode("ascii"),)
+        )
+    return jsonify({"ok": True})
+
+
+# Z Raporu hesap yönetimi — ana paneldeki "Z Raporu Hesapları" bölümü kullanır
+@app.route("/api/owners", methods=["GET"])
+def list_owners():
+    with get_db() as conn:
+        rows = conn.execute("SELECT id, username, display_name, created_at FROM owners ORDER BY username").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/owners", methods=["POST"])
+def add_owner():
+    data = request.json or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    display_name = (data.get("display_name") or "").strip() or None
+    if len(username) < 3:
+        return jsonify({"error": "Kullanıcı adı en az 3 karakter olmalı"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Şifre en az 6 karakter olmalı"}), 400
+    try:
+        with get_db() as conn:
+            conn.execute("INSERT INTO owners (username, password_hash, display_name) VALUES (?, ?, ?)",
+                         (username, generate_password_hash(password), display_name))
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Bu kullanıcı adı zaten var"}), 400
+    return jsonify({"ok": True}), 201
+
+
+@app.route("/api/owners/<int:owner_id>", methods=["PUT"])
+def update_owner(owner_id):
+    data = request.json or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if username and len(username) < 3:
+        return jsonify({"error": "Kullanıcı adı en az 3 karakter olmalı"}), 400
+    if password and len(password) < 6:
+        return jsonify({"error": "Şifre en az 6 karakter olmalı"}), 400
+    try:
+        with get_db() as conn:
+            if username:
+                conn.execute("UPDATE owners SET username=? WHERE id=?", (username, owner_id))
+            if password:
+                conn.execute("UPDATE owners SET password_hash=? WHERE id=?",
+                             (generate_password_hash(password), owner_id))
+            if "display_name" in data:
+                conn.execute("UPDATE owners SET display_name=? WHERE id=?",
+                             ((data.get("display_name") or "").strip() or None, owner_id))
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Bu kullanıcı adı zaten var"}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/owners/<int:owner_id>", methods=["DELETE"])
+def delete_owner(owner_id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM owners WHERE id=?", (owner_id,))
+    return jsonify({"ok": True})
 
 
 @app.route("/pizza")
@@ -976,89 +1281,6 @@ def bungalov_history():
 
 # ── REPORT ────────────────────────────────────────────────────────────────────
 
-@app.route("/api/report/daily")
-def daily_report():
-    import datetime as dt
-    date = request.args.get("date", dt.date.today().isoformat())
-    with get_db() as conn:
-        items = conn.execute("""
-            SELECT oi.item_name,
-                   SUM(oi.quantity)                    AS total_qty,
-                   SUM(oi.item_price * oi.quantity)    AS total_amount
-            FROM order_items oi
-            JOIN orders o ON o.id = oi.order_id
-            WHERE DATE(o.created_at, '+3 hours') = ? AND o.status = 'Ödendi'
-            GROUP BY oi.item_name
-            ORDER BY total_qty DESC
-        """, (date,)).fetchall()
-
-        waiters = conn.execute("""
-            SELECT COALESCE(NULLIF(waiter,''), '—') AS waiter,
-                   COUNT(*)                          AS order_count,
-                   COALESCE(SUM(total), 0)           AS total_amount
-            FROM orders
-            WHERE DATE(created_at, '+3 hours') = ? AND status = 'Ödendi'
-            GROUP BY waiter
-            ORDER BY total_amount DESC
-        """, (date,)).fetchall()
-
-        totals = conn.execute("""
-            SELECT COUNT(*) AS order_count, COALESCE(SUM(total), 0) AS total_amount
-            FROM orders
-            WHERE DATE(created_at, '+3 hours') = ? AND status = 'Ödendi'
-        """, (date,)).fetchone()
-
-        active_count = conn.execute("""
-            SELECT COUNT(*) AS cnt FROM orders
-            WHERE DATE(created_at, '+3 hours') = ? AND status = 'Aktif'
-        """, (date,)).fetchone()
-
-        expense_total = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE expense_date = ?",
-            (date,)
-        ).fetchone()["total"]
-
-    # Nakit / Kart breakdown (karma ödemeler parse edilir)
-    paid_orders = conn.execute("""
-        SELECT payment_method, total FROM orders
-        WHERE DATE(created_at, '+3 hours') = ? AND status = 'Ödendi'
-    """, (date,)).fetchall()
-
-    import re
-    nakit_total = 0.0
-    kart_total  = 0.0
-
-    def _tr_float(s):
-        return float(s.replace('.', '').replace(',', '.')) if s else 0.0
-
-    for o in paid_orders:
-        m = o["payment_method"] or ""
-        t = o["total"] or 0
-        if m == "Nakit":
-            nakit_total += t
-        elif m == "Kredi Kartı":
-            kart_total += t
-        elif "Nakit:" in m and "Kart:" in m:
-            nm = re.search(r'Nakit:\s*₺([\d.,]+)', m)
-            km = re.search(r'/\s*Kart:\s*₺([\d.,]+)', m)
-            nakit_total += _tr_float(nm.group(1) if nm else None)
-            kart_total  += _tr_float(km.group(1) if km else None)
-
-    total_amount = totals["total_amount"] or 0
-    return jsonify({
-        "date":          date,
-        "items":         [dict(r) for r in items],
-        "waiters":       [dict(r) for r in waiters],
-        "total_orders":  totals["order_count"] or 0,
-        "total_amount":  total_amount,
-        "active_count":  active_count["cnt"] or 0,
-        "nakit_total":   round(nakit_total, 2),
-        "kart_total":    round(kart_total, 2),
-        "expense_total": round(expense_total or 0, 2),
-        "net_amount":    round(total_amount - (expense_total or 0), 2),
-    })
-
-
 def _report_for_range(date_from, date_to):
     import re
     with get_db() as conn:
@@ -1127,27 +1349,6 @@ def _report_for_range(date_from, date_to):
         "expense_total": round(expense_total or 0, 2),
         "net_amount":    round(total_amount - (expense_total or 0), 2),
     }
-
-
-@app.route("/api/report/weekly")
-def weekly_report():
-    import datetime as dt
-    date_str = request.args.get("date", dt.date.today().isoformat())
-    d = dt.date.fromisoformat(date_str)
-    monday = d - dt.timedelta(days=d.weekday())
-    sunday = monday + dt.timedelta(days=6)
-    return jsonify(_report_for_range(monday.isoformat(), sunday.isoformat()))
-
-
-@app.route("/api/report/monthly")
-def monthly_report():
-    import datetime as dt
-    import calendar
-    date_str = request.args.get("date", dt.date.today().isoformat())
-    d = dt.date.fromisoformat(date_str)
-    first = d.replace(day=1)
-    last  = d.replace(day=calendar.monthrange(d.year, d.month)[1])
-    return jsonify(_report_for_range(first.isoformat(), last.isoformat()))
 
 
 if __name__ == "__main__":

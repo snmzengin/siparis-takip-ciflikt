@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F8F3E6" />
+  <title>Z Raporu — Sapanca Çiftlik Restoran</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    /* Renkler web sitesinin paletinden; görünüm Apple tarzı buzlu cam */
+    :root {
+      --cream:      #F8F3E6;
+      --paper:      #FCFAF1;
+      --olive:      #1E3B26;
+      --olive-light:#5C8A4A;
+      --gold:       #D9A441;
+      --gold-dark:  #B9852E;
+      --ink:        #211C12;
+      --ink-2:      #5B5140;
+      --ink-3:      #8C8270;
+      --line:       rgba(33, 28, 18, 0.09);
+      --line-2:     rgba(33, 28, 18, 0.14);
+      --track:      rgba(33, 28, 18, 0.07);
+      --accent:     #2F6B3F;
+      --accent-hov: #265834;
+      --up:         #2F6B3F;
+      --down:       #B4432F;
+
+      /* Grafik renkleri — validate_palette.js ile kontrol edildi (açık zemin) */
+      --c-nakit:    #C0673A;
+      --c-kart:     #3E6FB0;
+      --c-diger:    #A89F8C;
+      --c-kahvalti: #D9A441;
+      --c-aksam:    #2F7A45;
+      --c-bar:      #5C8A4A;
+
+      --glass:        rgba(252, 250, 241, 0.62);
+      --glass-strong: rgba(252, 250, 241, 0.86);
+      --glass-edge:   rgba(255, 255, 255, 0.65);
+      --blur:         saturate(170%) blur(22px);
+      --shadow:       0 1px 0 rgba(255,255,255,0.7) inset, 0 10px 30px rgba(33, 28, 18, 0.06);
+    }
+
+    html { background: var(--cream); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      background: transparent;  /* zemin html'de; body::before fotoğrafı görünsün */
+      color: var(--ink);
+      min-height: 100vh;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Web sitesindeki gibi yumuşak, bulanık renk lekeleri */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      /* Web sitesindeki restoran fotoğrafı, önceden bulanıklaştırılmış (static/bg-blur.jpg) */
+      background:
+        linear-gradient(rgba(248, 243, 230, 0.5), rgba(248, 243, 230, 0.5)),
+        url("/static/bg-blur.jpg") center 62% / cover no-repeat;
+      pointer-events: none;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    button { font-family: inherit; }
+
+    .glass {
+      background: var(--glass);
+      -webkit-backdrop-filter: var(--blur);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-edge);
+      box-shadow: var(--shadow);
+    }
+
+    /* ── GİRİŞ ─────────────────────────────────────────────── */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px 16px;
+    }
+    .login-card {
+      width: 100%; max-width: 360px;
+      border-radius: 24px;
+      padding: 34px 26px 28px;
+      background: var(--glass-strong);
+    }
+    .login-brand { text-align: center; margin-bottom: 26px; }
+    .mark {
+      width: 48px; height: 48px; margin: 0 auto 14px;
+      border-radius: 13px; background: var(--olive); color: var(--cream);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; letter-spacing: 0.5px;
+      box-shadow: 0 6px 16px rgba(30, 59, 38, 0.25);
+    }
+    .login-brand h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .login-brand p { color: var(--ink-3); font-size: 0.88rem; margin-top: 4px; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field label { font-size: 0.8rem; font-weight: 600; color: var(--ink-2); }
+    .field input {
+      padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 12px;
+      font-size: 1rem; font-family: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.8);
+    }
+    .field input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 164, 65, 0.22); }
+    .login-btn {
+      width: 100%; padding: 13px; margin-top: 8px;
+      border: none; border-radius: 12px; cursor: pointer;
+      background: var(--accent); color: #fff; font-size: 1rem; font-weight: 600;
+      box-shadow: 0 6px 16px rgba(47, 107, 63, 0.28);
+    }
+    .login-btn:hover { background: var(--accent-hov); }
+    .login-btn:disabled { opacity: 0.6; cursor: default; }
+    .login-err { color: var(--down); font-size: 0.86rem; font-weight: 600; min-height: 1.3em; margin-top: 12px; text-align: center; }
+    .login-note { color: var(--ink-2); font-size: 0.84rem; text-align: center; line-height: 1.45; background: rgba(217, 164, 65, 0.14); border-radius: 12px; padding: 12px; margin-bottom: 16px; }
+
+    /* ── ÜST BAR ───────────────────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--glass-strong);
+      -webkit-backdrop-filter: var(--blur);
+      backdrop-filter: var(--blur);
+      border-bottom: 1px solid var(--line);
+      padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+    }
+    .topbar-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+    .topbar .mark { width: 34px; height: 34px; margin: 0; border-radius: 10px; font-size: 0.78rem; box-shadow: none; }
+    .topbar .titles { flex: 1; min-width: 0; line-height: 1.2; }
+    .topbar .sub { font-size: 0.68rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+    .topbar .main { font-weight: 700; font-size: 0.98rem; }
+    .topbar .user { font-size: 0.84rem; color: var(--ink-2); white-space: nowrap; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 8px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+      font-size: 0.86rem; font-weight: 500; color: var(--ink);
+      background: rgba(255, 255, 255, 0.62);
+      -webkit-backdrop-filter: var(--blur);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--line-2);
+      box-shadow: 0 1px 2px rgba(33, 28, 18, 0.05);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:hover { background: rgba(255, 255, 255, 0.95); }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.55; cursor: default; }
+    .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(47, 107, 63, 0.24); }
+    .btn.primary:hover { background: var(--accent-hov); }
+
+    /* ── İÇERİK ────────────────────────────────────────────── */
+    .content { max-width: 1100px; margin: 0 auto; padding: 26px 16px 48px; }
+
+    .greeting { margin-bottom: 20px; }
+    .greeting h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+    .greeting h1 span { color: var(--gold-dark); }
+    .greeting p { color: var(--ink-3); margin-top: 4px; font-size: 0.95rem; text-transform: capitalize; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+    .seg { display: inline-flex; padding: 3px; gap: 2px; background: rgba(33, 28, 18, 0.06); border-radius: 11px; }
+    .seg button {
+      border: none; background: none; cursor: pointer;
+      padding: 7px 16px; border-radius: 8px; font-size: 0.86rem; font-weight: 500; color: var(--ink-2);
+    }
+    .seg button.active { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(33, 28, 18, 0.12); }
+    .date-nav { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px; }
+    .date-nav button {
+      border: none; background: none; cursor: pointer; width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; color: var(--ink-2);
+    }
+    .date-nav button svg { width: 16px; height: 16px; }
+    .date-nav button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.8); }
+    .date-nav button:disabled { opacity: 0.3; cursor: default; }
+    .date-label { font-weight: 600; font-size: 0.9rem; padding: 0 8px; min-width: 150px; text-align: center; text-transform: capitalize; }
+    .updated { font-size: 0.78rem; color: var(--ink-3); }
+    .print-actions { display: flex; gap: 8px; margin-left: auto; }
+
+    .card { border-radius: 18px; padding: 20px; }
+    .card h2 { font-size: 0.98rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 3px; }
+    .card .hint { font-size: 0.8rem; color: var(--ink-3); margin-bottom: 16px; }
+
+    /* KPI */
+    .kpis { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .kpi .label { font-size: 0.8rem; color: var(--ink-3); font-weight: 500; }
+    .kpi .value { font-size: 1.6rem; font-weight: 700; margin-top: 8px; letter-spacing: -0.03em; }
+    .kpi .meta { font-size: 0.8rem; color: var(--ink-3); margin-top: 6px; }
+    .kpi.hero .value { font-size: 2.3rem; color: var(--olive); }
+    .delta { display: inline-block; font-weight: 600; padding: 1px 7px; border-radius: 6px; margin-right: 4px; }
+    .delta.up { background: rgba(47, 107, 63, 0.12); color: var(--up); }
+    .delta.down { background: rgba(180, 67, 47, 0.10); color: var(--down); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+    /* Oransal dağılım */
+    .split-bar { display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden; background: var(--track); margin: 2px 0 18px; }
+    .split-bar div { height: 100%; }
+    .legend { display: flex; flex-direction: column; gap: 11px; }
+    .legend-row { display: flex; align-items: center; gap: 10px; }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .legend-row .name { flex: 1; font-weight: 500; }
+    .legend-row .name small { color: var(--ink-3); font-size: 0.8rem; margin-left: 6px; }
+    .legend-row .amt { font-weight: 600; }
+    .legend-row .pct { color: var(--ink-3); font-size: 0.84rem; width: 44px; text-align: right; }
+
+    /* Kahvaltı */
+    .bf-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .bf-head .big { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.03em; }
+    .bf-head .big small { font-size: 0.9rem; font-weight: 500; color: var(--ink-3); margin-left: 5px; letter-spacing: 0; }
+    .bf-head .amt { font-size: 1.05rem; font-weight: 600; color: var(--ink-2); }
+    #breakfast .fill { background: var(--c-kahvalti); }
+
+    /* Sıralı çubuk listesi */
+    .rank-list { display: flex; flex-direction: column; gap: 13px; }
+    .rank-row .top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .rank-row .pos { width: 18px; color: var(--ink-3); font-size: 0.78rem; font-weight: 600; flex-shrink: 0; }
+    .rank-row .name { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-row .val { font-weight: 600; white-space: nowrap; }
+    .rank-row .val small { color: var(--ink-3); font-weight: 500; font-size: 0.8rem; margin-left: 6px; }
+    .rank-row .track { height: 6px; background: var(--track); border-radius: 3px; margin-left: 26px; }
+    .rank-row .fill { height: 100%; background: var(--c-bar); border-radius: 3px; min-width: 3px; }
+
+    .empty { color: var(--ink-3); font-size: 0.9rem; text-align: center; padding: 22px 0; }
+    .error-banner { background: rgba(180, 67, 47, 0.10); color: var(--down); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 600; font-size: 0.88rem; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+      background: rgba(33, 28, 18, 0.86); color: #fff; padding: 11px 18px; border-radius: 12px;
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      font-size: 0.9rem; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 20;
+    }
+    .toast.err { background: rgba(180, 67, 47, 0.92); }
+
+    @media (max-width: 860px) {
+      .kpis { grid-template-columns: 1fr 1fr; }
+      .kpi.hero { grid-column: 1 / -1; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .topbar .user { display: none; }
+      .greeting h1 { font-size: 1.6rem; }
+      .kpi .value { font-size: 1.3rem; }
+      .kpi.hero .value { font-size: 2rem; }
+      .seg { flex: 1; }
+      .seg button { flex: 1; padding: 7px 8px; }
+      .date-nav { flex: 1; justify-content: space-between; }
+      .date-label { min-width: 0; }
+      .print-actions { width: 100%; margin-left: 0; }
+      .print-actions .btn { flex: 1; }
+    }
+
+    @media print {
+      body::before, .topbar, .controls .seg, .date-nav button, #today-btn, .print-actions, .toast { display: none !important; }
+      body, html { background: #fff; }
+      .glass { background: #fff; box-shadow: none; border: 1px solid #ddd; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .date-nav { padding: 0; }
+      .date-label { text-align: left; padding: 0; font-size: 1rem; }
+      .content { padding: 0; }
+      .card { break-inside: avoid; }
+      .split-bar, .rank-row .fill, .swatch { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── GİRİŞ EKRANI ─────────────────────────────────────── -->
+  <div id="login-view" class="login-wrap" hidden>
+    <form class="login-card glass" id="login-form" autocomplete="on">
+      <div class="login-brand">
+        <div class="mark">ÇR</div>
+        <h1>Z Raporu</h1>
+        <p>Sapanca Çiftlik Restoran</p>
+      </div>
+      <div id="no-owner-note" class="login-note" hidden>
+        Henüz Z Raporu hesabı yok. Ana paneldeki <b>Z Raporu Hesapları</b> bölümünden bir kullanıcı adı ve şifre oluşturun.
+      </div>
+      <div class="field">
+        <label for="login-user">Kullanıcı adı</label>
+        <input id="login-user" name="username" autocomplete="username" autocapitalize="off" required />
+      </div>
+      <div class="field">
+        <label for="login-pass">Şifre</label>
+        <input id="login-pass" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <button class="login-btn" id="login-btn" type="submit">Giriş Yap</button>
+      <div class="login-err" id="login-err"></div>
+    </form>
+  </div>
+
+  <!-- ── PANO ─────────────────────────────────────────────── -->
+  <div id="dash-view" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="mark">ÇR</div>
+        <div class="titles">
+          <div class="sub">Sapanca Çiftlik Restoran</div>
+          <div class="main">Z Raporu</div>
+        </div>
+        <span class="user" id="user-name"></span>
+        <button class="btn" onclick="logout()">Çıkış</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="greeting">
+        <h1>Hoş geldin, <span id="greet-name"></span></h1>
+        <p id="greet-date"></p>
+      </div>
+
+      <div class="controls">
+        <div class="seg" id="period-seg">
+          <button data-period="daily" class="active">Günlük</button>
+          <button data-period="weekly">Haftalık</button>
+          <button data-period="monthly">Aylık</button>
+        </div>
+        <div class="date-nav glass">
+          <button id="prev-btn" aria-label="Önceki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <span class="date-label" id="date-label"></span>
+          <button id="next-btn" aria-label="Sonraki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <button class="btn" id="today-btn">Bugün</button>
+        <span class="updated" id="updated"></span>
+        <div class="print-actions">
+          <button class="btn" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Yazdır
+          </button>
+          <button class="btn primary" id="ticket-btn" onclick="printTicket()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            Fiş Yazıcıdan Çıkar
+          </button>
+        </div>
+      </div>
+
+      <div id="error-banner" class="error-banner" hidden></div>
+
+      <section class="kpis">
+        <div class="card kpi hero glass">
+          <div class="label" id="kpi-total-label">Toplam Satış</div>
+          <div class="value num" id="kpi-total">—</div>
+          <div class="meta" id="kpi-delta"></div>
+        </div>
+        <div class="card kpi glass">
+          <div class="label">Kapanan Adisyon</div>
+          <div class="value num" id="kpi-orders">—</div>
+          <div class="meta">ödemesi alınan</div>
+        </div>
+        <div class="card kpi glass">
+          <div class="label">Ortalama Adisyon</div>
+          <div class="value num" id="kpi-avg">—</div>
+          <div class="meta">sipariş başına</div>
+        </div>
+        <div class="card kpi glass">
+          <div class="label">Şu An Açık Masa</div>
+          <div class="value num" id="kpi-active">—</div>
+          <div class="meta num" id="kpi-active-amt"></div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card glass">
+          <h2>Kahvaltı / Akşam Servisi</h2>
+          <p class="hint">Kahvaltı olarak girilen ürünler ve diğer tüm ürünler</p>
+          <div id="services"></div>
+        </div>
+        <div class="card glass">
+          <h2>Kahvaltı Satışı</h2>
+          <p class="hint">"Kahvaltı" kategorisindeki ürünler</p>
+          <div id="breakfast"></div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card glass">
+          <h2>Nakit / Kart</h2>
+          <p class="hint">Ödeme yöntemine göre satış</p>
+          <div id="payments"></div>
+        </div>
+        <div class="card glass">
+          <h2>Garson Bazlı Satış</h2>
+          <p class="hint">Kapanan adisyon tutarına göre</p>
+          <div id="waiters"></div>
+        </div>
+      </section>
+
+      <section class="card glass">
+        <h2>En Çok Satılan Ürünler</h2>
+        <p class="hint">Satılan adete göre ilk 10 ürün</p>
+        <div id="products"></div>
+      </section>
+    </main>
+  </div>
+
+<script>
+/* ── YARDIMCILAR ──────────────────────────────────────────── */
+const tl = n => "₺" + Math.round(n || 0).toLocaleString("tr-TR");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+let period = "daily";
+let current = new Date();
+let refreshTimer = null;
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const data = await res.json().catch(() => ({}));
+  return { status: res.status, data };
+}
+
+/* ── GİRİŞ / ÇIKIŞ ────────────────────────────────────────── */
+async function init() {
+  const { data } = await api("/api/patron/me");
+  if (data.username) return showDash(data);
+  document.getElementById("no-owner-note").hidden = !!data.has_owner;
+  document.getElementById("login-view").hidden = false;
+  document.getElementById("dash-view").hidden = true;
+  document.getElementById("login-user").focus();
+}
+
+document.getElementById("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = document.getElementById("login-btn");
+  const err = document.getElementById("login-err");
+  btn.disabled = true; err.textContent = "";
+  const { status, data } = await api("/api/patron/login", {
+    method: "POST",
+    body: JSON.stringify({
+      username: document.getElementById("login-user").value.trim(),
+      password: document.getElementById("login-pass").value,
+    }),
+  });
+  btn.disabled = false;
+  if (status === 200 && data.ok) {
+    document.getElementById("login-pass").value = "";
+    showDash(data);
+  } else {
+    err.textContent = data.error || "Giriş yapılamadı";
+  }
+});
+
+async function logout() {
+  await api("/api/patron/logout", { method: "POST" });
+  clearInterval(refreshTimer);
+  init();
+}
+
+function showDash(user) {
+  document.getElementById("login-view").hidden = true;
+  document.getElementById("dash-view").hidden = false;
+  document.getElementById("user-name").textContent = "@" + user.username;
+  document.getElementById("greet-name").textContent = user.display_name || user.username;
+  document.getElementById("greet-date").textContent =
+    new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  load();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(load, 60000);
+}
+
+/* ── DÖNEM SEÇİMİ ─────────────────────────────────────────── */
+document.querySelectorAll("#period-seg button").forEach(b => b.addEventListener("click", () => {
+  period = b.dataset.period;
+  document.querySelectorAll("#period-seg button").forEach(x => x.classList.toggle("active", x === b));
+  load();
+}));
+document.getElementById("prev-btn").addEventListener("click", () => shift(-1));
+document.getElementById("next-btn").addEventListener("click", () => shift(1));
+document.getElementById("today-btn").addEventListener("click", () => { current = new Date(); load(); });
+
+function shift(dir) {
+  const d = new Date(current);
+  if (period === "daily") d.setDate(d.getDate() + dir);
+  if (period === "weekly") d.setDate(d.getDate() + 7 * dir);
+  if (period === "monthly") { d.setDate(1); d.setMonth(d.getMonth() + dir); }
+  if (d > new Date()) return;
+  current = d;
+  load();
+}
+
+function periodLabel(r) {
+  const f = new Date(r.date_from + "T00:00"), t = new Date(r.date_to + "T00:00");
+  if (period === "daily") return f.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+  if (period === "monthly") return f.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  const sameMonth = f.getMonth() === t.getMonth();
+  return `${f.toLocaleDateString("tr-TR", sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" })} – ${t.toLocaleDateString("tr-TR", { day: "numeric", month: "long" })}`;
+}
+
+const PREV_WORD = { daily: "önceki güne", weekly: "önceki haftaya", monthly: "önceki aya" };
+const PREV_NONE = { daily: "Önceki gün satış yoktu", weekly: "Önceki hafta satış yoktu", monthly: "Önceki ay satış yoktu" };
+const TOTAL_LABEL = { daily: "Günlük Satış", weekly: "Haftalık Satış", monthly: "Aylık Satış" };
+
+/* ── VERİ ─────────────────────────────────────────────────── */
+async function load() {
+  const { status, data } = await api(`/api/patron/summary?period=${period}&date=${iso(current)}`);
+  if (status === 401) { clearInterval(refreshTimer); return init(); }
+  const banner = document.getElementById("error-banner");
+  if (status !== 200) { banner.textContent = "Veriler alınamadı, birazdan tekrar denenecek."; banner.hidden = false; return; }
+  banner.hidden = true;
+  render(data);
+}
+
+function render(r) {
+  document.getElementById("date-label").textContent = periodLabel(r);
+  const next = new Date(current);
+  if (period === "daily") next.setDate(next.getDate() + 1);
+  if (period === "weekly") next.setDate(next.getDate() + 7);
+  if (period === "monthly") { next.setDate(1); next.setMonth(next.getMonth() + 1); }
+  document.getElementById("next-btn").disabled = next > new Date();
+  document.getElementById("updated").textContent =
+    "Güncellendi " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
+  // KPI
+  document.getElementById("kpi-total-label").textContent = TOTAL_LABEL[period];
+  document.getElementById("kpi-total").textContent = tl(r.total_amount);
+  const deltaEl = document.getElementById("kpi-delta");
+  if (r.prev_total > 0) {
+    const pct = Math.round((r.total_amount - r.prev_total) / r.prev_total * 100);
+    deltaEl.innerHTML = `<span class="delta ${pct >= 0 ? "up" : "down"}">${pct >= 0 ? "▲" : "▼"} %${Math.abs(pct)}</span> ${PREV_WORD[period]} göre (${tl(r.prev_total)})`;
+  } else {
+    deltaEl.textContent = PREV_NONE[period];
+  }
+  document.getElementById("kpi-orders").textContent = r.total_orders;
+  document.getElementById("kpi-avg").textContent = r.total_orders ? tl(r.total_amount / r.total_orders) : "—";
+  document.getElementById("kpi-active").textContent = r.active_count;
+  document.getElementById("kpi-active-amt").textContent = r.active_count ? `${tl(r.active_amount)} bekleyen hesap` : "açık masa yok";
+
+  renderPayments(r);
+  renderServices(r);
+  renderBreakfast(r);
+  renderRank("waiters", r.waiters.map(w => ({
+    name: w.waiter, value: w.total_amount, label: tl(w.total_amount), sub: `${w.order_count} adisyon`,
+  })), "Bu dönemde kapanan adisyon yok");
+  renderRank("products", r.items.slice(0, 10).map(i => ({
+    name: i.item_name, value: i.total_qty, label: `${i.total_qty} adet`, sub: tl(i.total_amount),
+  })), "Bu dönemde satış yok");
+}
+
+function renderPayments(r) {
+  const parts = [
+    { name: "Nakit", value: r.nakit_total, color: "var(--c-nakit)" },
+    { name: "Kredi Kartı", value: r.kart_total, color: "var(--c-kart)" },
+  ];
+  if (r.other_total > 0.5) parts.push({ name: "Diğer", value: r.other_total, color: "var(--c-diger)" });
+  renderSplit("payments", parts, r.total_amount);
+}
+
+function renderServices(r) {
+  renderSplit("services", [
+    { name: "Kahvaltı", sub: r.breakfast_qty ? `${r.breakfast_qty} porsiyon` : "", value: r.breakfast_total, color: "var(--c-kahvalti)" },
+    { name: "Akşam Yemeği", value: r.dinner_total, color: "var(--c-aksam)" },
+  ], r.breakfast_total + r.dinner_total);
+}
+
+function renderBreakfast(r) {
+  const el = document.getElementById("breakfast");
+  if (!r.breakfast_qty) { el.innerHTML = `<div class="empty">Bu dönemde kahvaltı satılmadı</div>`; return; }
+  el.innerHTML = `
+    <div class="bf-head">
+      <span class="big num">${r.breakfast_qty}<small>porsiyon</small></span>
+      <span class="amt num">${tl(r.breakfast_total)}</span>
+    </div>
+    <div id="breakfast-items"></div>`;
+  renderRank("breakfast-items", r.breakfast_items.map(i => ({
+    name: i.item_name, value: i.total_qty, label: `${i.total_qty} porsiyon`, sub: tl(i.total_amount),
+  })), "");
+}
+
+function renderSplit(id, parts, total) {
+  const el = document.getElementById(id);
+  if (!total) { el.innerHTML = `<div class="empty">Bu dönemde satış yok</div>`; return; }
+  const pct = v => Math.round(v / total * 100);
+  el.innerHTML = `
+    <div class="split-bar">
+      ${parts.filter(p => p.value > 0).map(p =>
+        `<div style="width:${p.value / total * 100}%;background:${p.color}" title="${p.name}: ${tl(p.value)} (%${pct(p.value)})"></div>`).join("")}
+    </div>
+    <div class="legend">
+      ${parts.map(p => `
+        <div class="legend-row">
+          <span class="swatch" style="background:${p.color}"></span>
+          <span class="name">${p.name}${p.sub ? `<small>${p.sub}</small>` : ""}</span>
+          <span class="amt num">${tl(p.value)}</span>
+          <span class="pct num">%${pct(p.value)}</span>
+        </div>`).join("")}
+    </div>`;
+}
+
+function renderRank(id, rows, emptyText) {
+  const el = document.getElementById(id);
+  if (!rows.length) { el.innerHTML = `<div class="empty">${emptyText}</div>`; return; }
+  const max = Math.max(...rows.map(r => r.value), 1);
+  el.innerHTML = `<div class="rank-list">${rows.map((r, i) => `
+    <div class="rank-row" title="${esc(r.name)}: ${esc(r.label)} · ${esc(r.sub)}">
+      <div class="top">
+        <span class="pos">${i + 1}</span>
+        <span class="name">${esc(r.name)}</span>
+        <span class="val num">${esc(r.label)}<small>${esc(r.sub)}</small></span>
+      </div>
+      <div class="track"><div class="fill" style="width:${r.value / max * 100}%"></div></div>
+    </div>`).join("")}</div>`;
+}
+
+/* ── YAZDIRMA ─────────────────────────────────────────────── */
+function toast(text, isErr) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isErr ? " err" : "");
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+async function printTicket() {
+  const btn = document.getElementById("ticket-btn");
+  btn.disabled = true;
+  const { status, data } = await api("/api/patron/print", {
+    method: "POST",
+    body: JSON.stringify({ period, date: iso(current) }),
+  });
+  btn.disabled = false;
+  if (status === 401) return init();
+  if (status === 200 && data.ok) toast("Z raporu fiş yazıcıya gönderildi");
+  else toast(data.error || "Fiş gönderilemedi", true);
+}
+
+init();
+</script>
+</body>
+</html>

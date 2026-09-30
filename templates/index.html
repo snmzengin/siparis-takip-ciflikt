@@ -55,10 +55,6 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-3-3L3 17.6"/></svg></span>
         <span>Giderler</span>
       </button>
-      <button class="nav-item" data-tab="report">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></span>
-        <span>Günlük Rapor</span>
-      </button>
       <button class="nav-item" data-tab="waiters">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span>Garsonlar</span>
@@ -66,6 +62,10 @@
       <button class="nav-item" data-tab="printers">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
         <span>Fiş Yazıcıları</span>
+      </button>
+      <button class="nav-item" data-tab="owners">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <span>Z Raporu Hesapları</span>
       </button>
     </nav>
 
@@ -98,54 +98,6 @@
       </div>
 
       <div id="low-stock-banner" class="hidden"></div>
-
-      <div id="stats-bar" class="stats-bar">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <div>
-            <span class="stat-num" id="stat-active">0</span>
-            <span class="stat-label">Aktif Masa</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
-          </div>
-          <div>
-            <span class="stat-num" id="stat-revenue">₺0</span>
-            <span class="stat-label">Aktif Toplam</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
-          </div>
-          <div>
-            <span class="stat-num" id="stat-today">₺0</span>
-            <span class="stat-label">Bugün Kazanılan</span>
-          </div>
-        </div>
-        <div class="stat-card stat-nakit">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
-          </div>
-          <div>
-            <span class="stat-num" id="stat-nakit">₺0</span>
-            <span class="stat-label">Nakit</span>
-          </div>
-        </div>
-        <div class="stat-card stat-kart">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-          </div>
-          <div>
-            <span class="stat-num" id="stat-kart">₺0</span>
-            <span class="stat-label">Kart</span>
-          </div>
-        </div>
-      </div>
 
       <div class="status-filter">
         <button class="filter-btn active" data-filter="Aktif">Aktif</button>
@@ -184,7 +136,7 @@
       <div id="bungalov-grid" class="bungalov-grid"></div>
       <div class="page-header" style="margin-top:36px">
         <div>
-          <h3 style="font-size:1rem;color:#0f4f4a;font-weight:700">Geçmiş Hesaplar</h3>
+          <h3 style="font-size:1rem;color:var(--ink);font-weight:700">Geçmiş Hesaplar</h3>
         </div>
         <button class="btn sm" onclick="loadBungalovHistory()">Yükle</button>
       </div>
@@ -350,28 +302,32 @@
       </div>
     </section>
 
-    <!-- ═══ RAPOR ════════════════════════════════════════════════ -->
-    <section id="tab-report" class="tab">
+    <!-- ═══ Z RAPORU HESAPLARI ═══════════════════════════════════════ -->
+    <section id="tab-owners" class="tab">
       <div class="page-header">
         <div>
-          <h2>Rapor</h2>
-          <p class="page-sub">Satış ve garson bazlı özet</p>
+          <h2>Z Raporu Hesapları</h2>
+          <p class="page-sub">Satış özetinin görüldüğü Z Raporu ekranının kullanıcı adı ve şifreleri</p>
         </div>
-        <button class="btn" onclick="window.print()">🖨 Yazdır</button>
+        <a class="btn primary" href="/z-raporu" target="_blank" style="text-decoration:none">Z Raporunu Aç ↗</a>
       </div>
 
-      <div class="report-period-tabs">
-        <button class="report-tab-btn active" onclick="switchReportPeriod('daily', this)">Günlük</button>
-        <button class="report-tab-btn" onclick="switchReportPeriod('weekly', this)">Haftalık</button>
-        <button class="report-tab-btn" onclick="switchReportPeriod('monthly', this)">Aylık</button>
-      </div>
+      <div class="printer-settings">
+        <div class="form-row">
+          <label>Yeni hesap</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="owner-new-name" type="text" placeholder="Ad (örn: Ahmet)" autocomplete="off" style="flex:1;min-width:120px" />
+            <input id="owner-new-user" type="text" placeholder="Kullanıcı adı" autocomplete="off" style="flex:1;min-width:140px" />
+            <input id="owner-new-pass" type="password" placeholder="Şifre (en az 6 karakter)" autocomplete="new-password" style="flex:1;min-width:140px" />
+            <button class="btn primary" onclick="addOwner()">Ekle</button>
+          </div>
+        </div>
+        <div id="owner-status-msg" class="printer-status-msg"></div>
 
-      <div class="report-date-row">
-        <input type="date" id="report-date" class="date-input" />
-        <button class="btn primary" onclick="loadReport()">Getir</button>
-      </div>
+        <div id="owners-list" class="owners-list"></div>
 
-      <div id="report-content"></div>
+        <p class="page-sub" style="margin-top:18px">Z Raporu adresi: <code id="owner-url"></code> — telefondan aynı Wi-Fi'dayken açılır.</p>
+      </div>
     </section>
 
   </main><!-- /main-wrap -->
@@ -487,7 +443,7 @@
       <div class="payment-options" id="payment-options">
         <button class="payment-opt nakit" onclick="confirmPayment('Nakit')">
           <!-- Lucide: wallet -->
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
             <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
             <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
@@ -496,7 +452,7 @@
         </button>
         <button class="payment-opt kart" onclick="confirmPayment('Kredi Kartı')">
           <!-- Lucide: credit-card -->
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="5" width="20" height="14" rx="2"/>
             <line x1="2" y1="10" x2="22" y2="10"/>
           </svg>
@@ -504,7 +460,7 @@
         </button>
         <button class="payment-opt karma" onclick="showSplitPayment()">
           <!-- Lucide: shuffle -->
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/>
             <path d="m18 2 4 4-4 4"/>
             <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/>
@@ -530,7 +486,7 @@
     <div class="modal-box" style="max-width:360px">
       <div class="modal-header"><h3>Masa Değiştir</h3></div>
       <input type="hidden" id="table-change-order-id" />
-      <p style="font-size:0.88rem;color:#6b8e8b;margin-bottom:16px">
+      <p style="font-size:0.88rem;color:var(--ink-3);margin-bottom:16px">
         Mevcut masa: <strong id="table-change-current"></strong>
       </p>
       <div class="form-row">

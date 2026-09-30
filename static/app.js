@@ -30,9 +30,9 @@ const TAB_NAMES = {
   menu:        "Menü Yönetimi",
   ingredients: "Malzemeler",
   expenses:    "Giderler",
-  report:      "Rapor",
   waiters:     "Garsonlar",
   printers:    "Fiş Yazıcıları",
+  owners:      "Z Raporu Hesapları",
 };
 
 /* ── INIT ────────────────────────────────────────────────────────────────── */
@@ -47,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
     b.classList.toggle("active", b.dataset.filter === activeFilter);
   });
 
-  document.getElementById("report-date").value = todayLocal();
   document.getElementById("expense-date").value = todayLocal();
 
   updateClock();
@@ -80,11 +79,11 @@ function switchTab(tab) {
   // Mobilde sidebar'ı kapat
   document.getElementById("sidebar").classList.remove("open");
   document.getElementById("sidebar-overlay").classList.add("hidden");
-  if (tab === "report")      loadReport();
   if (tab === "stock")       renderStockAlerts();
   if (tab === "bungalov")    loadBungalov();
   if (tab === "waiters")     loadWaiters();
   if (tab === "printers")    loadPrinterSettings();
+  if (tab === "owners")      loadOwners();
   if (tab === "ingredients") loadIngredients();
   if (tab === "expenses")    loadExpenses();
 }
@@ -380,39 +379,7 @@ async function loadOrders() {
   orders = await api("/api/orders");
   renderOrders();
   renderGardenMap();
-  renderStats();
   renderLowStockBanner();
-}
-
-function renderStats() {
-  const active = orders.filter(o => o.status !== "Ödendi");
-  const paid   = orders.filter(o => o.status === "Ödendi");
-
-  let nakitTotal = 0, kartTotal = 0;
-  paid.forEach(o => {
-    const m = o.payment_method || "";
-    if (m === "Nakit") {
-      nakitTotal += o.total;
-    } else if (m === "Kredi Kartı") {
-      kartTotal += o.total;
-    } else if (m.includes("Nakit:") && m.includes("Kart:")) {
-      nakitTotal += parseKarmaAmount(m, "Nakit");
-      kartTotal  += parseKarmaAmount(m, "Kart");
-    }
-  });
-
-  document.getElementById("stat-active").textContent  = active.length;
-  document.getElementById("stat-revenue").textContent = "₺" + active.reduce((s, o) => s + o.total, 0).toLocaleString("tr-TR");
-  document.getElementById("stat-today").textContent   = "₺" + paid.reduce((s, o) => s + o.total, 0).toLocaleString("tr-TR");
-  document.getElementById("stat-nakit").textContent   = "₺" + nakitTotal.toLocaleString("tr-TR");
-  document.getElementById("stat-kart").textContent    = "₺" + kartTotal.toLocaleString("tr-TR");
-}
-
-function parseKarmaAmount(method, key) {
-  const re    = new RegExp(key + ":\\s*₺([\\d.,]+)");
-  const match = method.match(re);
-  if (!match) return 0;
-  return parseFloat(match[1].replace(/\./g, "").replace(",", ".")) || 0;
 }
 
 /* ── GARDEN MAP ──────────────────────────────────────────────────────────── */
@@ -496,6 +463,32 @@ async function tableModalDelete(orderId) {
   loadStock();
 }
 
+/* ── TOPLAM GİZLEME (göz ikonu) ─────────────────────────────────────────── */
+// Açılan kartlar 5 saniyelik yenilemede tekrar kapanmasın diye burada tutuluyor
+const revealedTotals = new Set();
+
+const EYE_OPEN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_CLOSED = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M6.61 6.61A18.4 18.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.39-1.61"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="m2 2 20 20"/></svg>`;
+
+function maskedTotalHtml(order) {
+  const shown = revealedTotals.has(order.id);
+  return `
+    <div class="order-total-row masked-total">
+      <span>Toplam</span>
+      <span class="total-value ${shown ? "" : "is-masked"}">${shown ? `₺${order.total.toLocaleString("tr-TR")}` : "₺ ••••"}</span>
+      <button class="eye-btn" onclick="toggleTotal(${order.id})"
+              title="${shown ? "Tutarı gizle" : "Tutarı göster"}" aria-label="${shown ? "Tutarı gizle" : "Tutarı göster"}">
+        ${shown ? EYE_CLOSED : EYE_OPEN}
+      </button>
+    </div>`;
+}
+
+function toggleTotal(orderId) {
+  if (revealedTotals.has(orderId)) revealedTotals.delete(orderId);
+  else revealedTotals.add(orderId);
+  renderOrders();
+}
+
 function renderOrders() {
   const list     = document.getElementById("orders-list");
   const filtered = activeFilter === "all"
@@ -524,7 +517,7 @@ function renderOrders() {
           <ul class="order-items-list">
             ${order.items.map(i => `<li><span class="item-qty">${i.quantity}×</span> ${esc(i.item_name)} <span class="item-price">₺${(i.item_price * i.quantity).toLocaleString("tr-TR")}</span></li>`).join("")}
           </ul>
-          <div class="order-total-row">Toplam: ₺${order.total.toLocaleString("tr-TR")}</div>
+          ${maskedTotalHtml(order)}
           ${timingHtml(order)}
           <div class="order-actions">
             ${!isPaid
@@ -988,7 +981,7 @@ function renderBungalovAccount(data) {
         ${data.charges.length ? data.charges.map(c => {
           const dt = new Date(c.created_at + "Z").toLocaleDateString("tr-TR");
           return `<tr>
-            <td style="color:#6aadaa;font-size:0.82rem">${dt}</td>
+            <td style="color:var(--ink-3);font-size:0.82rem">${dt}</td>
             <td>${esc(c.description)}</td>
             <td style="font-weight:600">₺${c.amount.toLocaleString("tr-TR")}</td>
             ${!isClosed ? `<td><button class="btn sm danger" onclick="deleteCharge(${c.id})">Sil</button></td>` : ""}
@@ -1122,148 +1115,6 @@ async function savePin(waiterId) {
   setTimeout(() => { input.placeholder = "••••"; }, 2000);
 }
 
-/* ── REPORT ──────────────────────────────────────────────────────────────── */
-let reportPeriod = "daily";
-
-function switchReportPeriod(period, btn) {
-  reportPeriod = period;
-  document.querySelectorAll(".report-tab-btn").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  loadReport();
-}
-
-async function loadReport() {
-  const date = document.getElementById("report-date").value || todayLocal();
-  let data;
-  if (reportPeriod === "weekly") {
-    data = await api(`/api/report/weekly?date=${date}`);
-  } else if (reportPeriod === "monthly") {
-    data = await api(`/api/report/monthly?date=${date}`);
-  } else {
-    data = await api(`/api/report/daily?date=${date}`);
-  }
-  renderReport(data, reportPeriod);
-}
-
-function renderReport(data, period = "daily") {
-  const container = document.getElementById("report-content");
-
-  let titleStr = "";
-  if (period === "daily") {
-    titleStr = new Date(data.date + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-  } else if (period === "weekly") {
-    const from = new Date(data.date_from + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
-    const to   = new Date(data.date_to   + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-    titleStr = `${from} – ${to}`;
-  } else {
-    titleStr = new Date(data.date_from + "T00:00:00").toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
-  }
-
-  if (!data.total_orders) {
-    container.innerHTML = `<div class="empty-state">${titleStr} dönemine ait kayıt bulunamadı.</div>`;
-    return;
-  }
-
-  const activeCard = period === "daily"
-    ? `<div class="stat-card"><span class="stat-num">${data.active_count}</span><span class="stat-label">Açık Masa</span></div>`
-    : "";
-
-  container.innerHTML = `
-    <div class="report-date-title">${titleStr}</div>
-
-    <div class="stats-bar">
-      <div class="stat-card">
-        <span class="stat-num">${data.total_orders}</span>
-        <span class="stat-label">Kapanan Masa</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-num">₺${(data.total_amount || 0).toLocaleString("tr-TR")}</span>
-        <span class="stat-label">Toplam Ciro</span>
-      </div>
-      <div class="stat-card stat-nakit">
-        <span class="stat-num">₺${(data.nakit_total || 0).toLocaleString("tr-TR")}</span>
-        <span class="stat-label">💵 Nakit</span>
-      </div>
-      <div class="stat-card stat-kart">
-        <span class="stat-num">₺${(data.kart_total || 0).toLocaleString("tr-TR")}</span>
-        <span class="stat-label">💳 Kart</span>
-      </div>
-      <div class="stat-card stat-expense">
-        <span class="stat-num">₺${(data.expense_total || 0).toLocaleString("tr-TR")}</span>
-        <span class="stat-label">🧾 Gider</span>
-      </div>
-      <div class="stat-card ${(data.net_amount || 0) >= 0 ? 'stat-net-pos' : 'stat-net-neg'}">
-        <span class="stat-num">₺${(data.net_amount || 0).toLocaleString("tr-TR")}</span>
-        <span class="stat-label">Net Kâr</span>
-      </div>
-      ${activeCard}
-    </div>
-
-    ${renderTopSellers(data.items)}
-
-    <div class="report-panels">
-      <div class="report-panel">
-        <h3>Ürün Bazlı Satışlar</h3>
-        ${data.items.length ? `
-        <table>
-          <thead><tr><th>Ürün</th><th>Adet</th><th>Tutar</th></tr></thead>
-          <tbody>
-            ${data.items.map(i => `
-              <tr>
-                <td>${esc(i.item_name)}</td>
-                <td><strong>${i.total_qty}</strong></td>
-                <td>₺${(i.total_amount || 0).toLocaleString("tr-TR")}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>` : `<p class="empty-state" style="padding:20px">Satış yok</p>`}
-      </div>
-
-      <div class="report-panel">
-        <h3>Garson Bazlı</h3>
-        ${data.waiters.length ? `
-        <table>
-          <thead><tr><th>Garson</th><th>Masa</th><th>Tutar</th></tr></thead>
-          <tbody>
-            ${data.waiters.map(w => `
-              <tr>
-                <td>${esc(w.waiter)}</td>
-                <td>${w.order_count}</td>
-                <td>₺${(w.total_amount || 0).toLocaleString("tr-TR")}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>` : `<p class="empty-state" style="padding:20px">Veri yok</p>`}
-      </div>
-    </div>
-  `;
-}
-
-function renderTopSellers(items) {
-  if (!items || !items.length) return "";
-  const top5 = items.slice(0, 5);
-  const max  = Math.max(...top5.map(i => i.total_qty));
-  return `
-    <div class="top-sellers-panel">
-      <h3>🏆 En Çok Satan Ürünler</h3>
-      <div class="top-sellers-bars">
-        ${top5.map((i, idx) => `
-          <div class="top-seller-row">
-            <div class="top-seller-rank">${idx + 1}</div>
-            <div class="top-seller-info">
-              <div class="top-seller-name">${esc(i.item_name)}</div>
-              <div class="top-seller-bar-track">
-                <div class="top-seller-bar-fill" style="width:${(i.total_qty / max * 100).toFixed(0)}%"></div>
-              </div>
-            </div>
-            <div class="top-seller-qty">${i.total_qty} adet</div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
 /* ── MODAL HELPERS ───────────────────────────────────────────────────────── */
 function showModal(id) {
   document.getElementById(id).classList.remove("hidden");
@@ -1372,4 +1223,66 @@ function copyAgentToken() {
   const msg = document.getElementById("printer-status-msg");
   msg.textContent = "✓ Token kopyalandı";
   msg.className = "printer-status-msg ok";
+}
+
+/* ── Z RAPORU HESAPLARI ────────────────────────────────────────────────────── */
+function ownerMsg(text, ok) {
+  const msg = document.getElementById("owner-status-msg");
+  msg.textContent = text;
+  msg.className = "printer-status-msg " + (ok ? "ok" : "err");
+}
+
+async function loadOwners() {
+  const owners = await api("/api/owners");
+  document.getElementById("owner-url").textContent = `${location.protocol}//${location.host}/z-raporu`;
+  const list = document.getElementById("owners-list");
+  if (!owners.length) {
+    list.innerHTML = `<p class="page-sub" style="margin-top:14px">Henüz hesap yok. Yukarıdan ilk Z Raporu hesabını oluştur.</p>`;
+    return;
+  }
+  list.innerHTML = owners.map(o => `
+    <div class="owner-row">
+      <div class="owner-name">${esc(o.display_name || o.username)}<small>@${esc(o.username)}</small></div>
+      <input type="text" id="owner-name-${o.id}" value="${esc(o.display_name || "")}" placeholder="Ad" autocomplete="off" />
+      <input type="password" id="owner-pass-${o.id}" placeholder="Yeni şifre (isteğe bağlı)" autocomplete="new-password" />
+      <button class="btn" onclick="changeOwnerPass(${o.id})">Kaydet</button>
+      <button class="btn danger" onclick="deleteOwner(${o.id}, this)">Sil</button>
+    </div>`).join("");
+}
+
+async function addOwner() {
+  const display_name = document.getElementById("owner-new-name").value.trim();
+  const username = document.getElementById("owner-new-user").value.trim();
+  const password = document.getElementById("owner-new-pass").value;
+  const res = await api("/api/owners", { method: "POST", body: JSON.stringify({ username, password, display_name }) });
+  if (res.error) return ownerMsg(res.error, false);
+  document.getElementById("owner-new-name").value = "";
+  document.getElementById("owner-new-user").value = "";
+  document.getElementById("owner-new-pass").value = "";
+  ownerMsg(`"${username}" hesabı oluşturuldu ✓`, true);
+  loadOwners();
+}
+
+async function changeOwnerPass(id) {
+  const input = document.getElementById(`owner-pass-${id}`);
+  const display_name = document.getElementById(`owner-name-${id}`).value.trim();
+  const res = await api(`/api/owners/${id}`, { method: "PUT", body: JSON.stringify({ password: input.value, display_name }) });
+  if (res.error) return ownerMsg(res.error, false);
+  const passChanged = !!input.value;
+  input.value = "";
+  ownerMsg(passChanged ? "Ad ve şifre güncellendi ✓" : "Kaydedildi ✓", true);
+  loadOwners();
+}
+
+async function deleteOwner(id, btn) {
+  // Tarayıcı onay penceresi yerine iki adımlı buton: ilk tık onay ister
+  if (btn.dataset.confirm !== "1") {
+    btn.dataset.confirm = "1";
+    btn.textContent = "Emin misin?";
+    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Sil"; }, 3000);
+    return;
+  }
+  await api(`/api/owners/${id}`, { method: "DELETE" });
+  ownerMsg("Hesap silindi", true);
+  loadOwners();
 }
