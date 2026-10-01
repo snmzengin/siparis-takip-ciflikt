@@ -529,9 +529,14 @@ function renderOrders() {
     const nakit = sum(paid.filter(o => o.payment_method === "Nakit"));
     const kart  = sum(paid.filter(o => o.payment_method === "Kredi Kartı"));
     const fmt   = n => "₺" + n.toLocaleString("tr-TR");
-    document.getElementById("orders-day-summary").textContent =
-      `${paid.length} ödenen sipariş · Toplam ${fmt(sum(paid))} · Nakit ${fmt(nakit)} · Kart ${fmt(kart)}` +
-      (sum(paid) - nakit - kart > 0 ? ` · Diğer ${fmt(sum(paid) - nakit - kart)}` : "");
+    const other = sum(paid) - nakit - kart;
+    document.getElementById("orders-today-btn").classList.toggle("is-today", !ordersDate);
+    document.getElementById("orders-day-summary").innerHTML = `
+      <span class="sum-chip"><b>${paid.length}</b> ödenen sipariş</span>
+      <span class="sum-chip total">Toplam <b>${fmt(sum(paid))}</b></span>
+      <span class="sum-chip"><span class="dot nakit"></span>Nakit <b>${fmt(nakit)}</b></span>
+      <span class="sum-chip"><span class="dot kart"></span>Kart <b>${fmt(kart)}</b></span>
+      ${other > 0 ? `<span class="sum-chip">Diğer <b>${fmt(other)}</b></span>` : ""}`;
   }
 
   if (!filtered.length) {

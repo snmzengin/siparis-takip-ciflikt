@@ -114,11 +114,18 @@
       </div>
 
       <div id="orders-date-bar" class="orders-date-bar hidden">
-        <button class="btn sm" onclick="shiftOrdersDate(-1)" title="Önceki gün">‹</button>
-        <input id="orders-date" type="date" onchange="setOrdersDate(this.value)" />
-        <button class="btn sm" onclick="shiftOrdersDate(1)" title="Sonraki gün">›</button>
-        <button class="btn sm" onclick="setOrdersDate(todayLocal())">Bugün</button>
-        <span id="orders-day-summary" class="orders-day-summary"></span>
+        <div class="date-stepper">
+          <button class="stepper-btn" onclick="shiftOrdersDate(-1)" title="Önceki gün" aria-label="Önceki gün">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <input id="orders-date" class="stepper-date" type="date" onchange="setOrdersDate(this.value)" />
+          <button class="stepper-btn" onclick="shiftOrdersDate(1)" title="Sonraki gün" aria-label="Sonraki gün">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <span class="stepper-sep"></span>
+          <button id="orders-today-btn" class="stepper-today" onclick="setOrdersDate(todayLocal())">Bugün</button>
+        </div>
+        <div id="orders-day-summary" class="orders-day-summary"></div>
       </div>
 
       <div id="orders-list" class="orders-grid"></div>

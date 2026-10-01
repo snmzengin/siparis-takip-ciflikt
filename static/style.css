@@ -348,15 +348,71 @@ body::before {
 
 .filter-btn:hover { color: var(--ink); }
 
+/* Ödenen siparişler — gün seçici (filtreyle aynı segment dili) ve günlük özet */
 .orders-date-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin: -10px 0 20px;
+  margin: -8px 0 22px;
 }
-.orders-date-bar input[type="date"] { width: auto; }
-.orders-day-summary { font-size: 0.85rem; color: var(--ink-2); margin-left: 4px; }
+
+.date-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(33, 28, 18, 0.06);
+  border-radius: 11px;
+}
+
+.stepper-btn, .stepper-today {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 30px;
+  border: none; border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit; font-size: 0.84rem; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.stepper-btn { width: 30px; }
+.stepper-today { padding: 0 14px; }
+.stepper-btn:hover, .stepper-today:hover { color: var(--ink); background: rgba(255, 255, 255, 0.55); }
+.stepper-today.is-today { color: var(--ink-3); pointer-events: none; }
+
+.stepper-date {
+  height: 30px;
+  padding: 0 10px;
+  border: none; border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(33, 28, 18, 0.12), 0 1px 1px rgba(33, 28, 18, 0.04);
+  color: var(--ink);
+  font-family: inherit; font-size: 0.84rem; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.stepper-date:focus { outline: none; box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.3); }
+.stepper-date::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+
+.stepper-sep { width: 1px; height: 16px; background: var(--line-2); margin: 0 3px; }
+
+.orders-day-summary { display: flex; gap: 6px; flex-wrap: wrap; }
+.sum-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.sum-chip b { color: var(--ink); font-weight: 600; }
+.sum-chip.total { background: var(--accent-soft); border-color: transparent; }
+.sum-chip.total b { color: var(--accent); }
+.sum-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.sum-chip .dot.nakit { background: var(--c-nakit); }
+.sum-chip .dot.kart  { background: var(--c-kart); }
 .filter-btn.active {
   background: #fff;
   color: var(--ink);
