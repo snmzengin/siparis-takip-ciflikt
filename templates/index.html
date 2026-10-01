@@ -39,6 +39,11 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 22V12h6v10"/></svg></span>
         <span>Bungalov</span>
       </button>
+      <button class="nav-item" data-tab="stays">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 15h3M13 15h3M8 19h3"/></svg></span>
+        <span>Giriş / Çıkış</span>
+        <span class="nav-count hidden" id="stays-nav-count"></span>
+      </button>
       <button class="nav-item" data-tab="lodging">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20V8l10-5 10 5v12"/><path d="M6 20v-6h12v6"/><path d="M12 11v.01"/><path d="M2 20h20"/></svg></span>
         <span>Konaklama Ödemeleri</span>
@@ -164,6 +169,75 @@
         <button class="btn sm" onclick="loadBungalovHistory()">Yükle</button>
       </div>
       <div id="bungalov-history"></div>
+    </section>
+
+    <!-- ═══ GİRİŞ / ÇIKIŞ (konaklama tablosundan) ═════════════════════════ -->
+    <section id="tab-stays" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Giriş / Çıkış</h2>
+          <p class="page-sub" id="stays-sub">Konaklama tablosundan okunuyor…</p>
+        </div>
+        <div class="stays-actions">
+          <a class="btn sm" id="stays-sheet-link" href="#" target="_blank" rel="noopener" style="text-decoration:none">Tabloyu Aç ↗</a>
+          <button class="btn sm" onclick="toggleStaysSetup()">Tablo Linki</button>
+          <button class="btn sm" onclick="loadStays(true)">↻ Yenile</button>
+        </div>
+      </div>
+
+      <div id="stays-msg" class="stays-msg hidden"></div>
+
+      <div id="stays-setup" class="expense-form stays-setup hidden">
+        <div class="form-row" style="flex:1 1 100%">
+          <label>Konaklama tablosunun linki</label>
+          <p class="page-sub" style="margin:0 0 8px">Google E-Tablolar'da tabloyu açıp <b>Paylaş</b>'tan <b>"Bağlantıya sahip olan herkes — Görüntüleyen"</b> yapın, linki buraya yapıştırın. Link panelin veritabanında saklanır, kimseyle paylaşmayın.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="stays-sheet-input" type="text" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off" style="flex:1;min-width:220px" />
+            <button class="btn primary" onclick="saveStaysSheet()">Bağla</button>
+          </div>
+        </div>
+        <div id="stays-setup-msg" class="printer-status-msg" style="width:100%;margin-top:0"></div>
+      </div>
+
+      <div class="seg stays-views">
+        <button class="seg-btn active" data-view="overview" onclick="setStaysView('overview')">Genel Bakış</button>
+        <button class="seg-btn" data-view="house" onclick="setStaysView('house')">Ev Ev</button>
+      </div>
+
+      <!-- Ev Ev: tek evin aylık takvimi ve konaklama listesi -->
+      <div id="stays-house" class="hidden">
+        <div class="house-bar">
+          <div class="seg" id="house-tabs"></div>
+          <div class="date-stepper">
+            <button class="stepper-btn" id="house-prev" onclick="shiftHouseMonth(-1)" title="Önceki ay" aria-label="Önceki ay">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span class="house-month" id="house-month"></span>
+            <button class="stepper-btn" id="house-next" onclick="shiftHouseMonth(1)" title="Sonraki ay" aria-label="Sonraki ay">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="house-stats" class="stays-summary house-stats"></div>
+        <p id="house-stats-note" class="house-note"></p>
+        <div class="stays-cal-wrap"><div id="house-cal" class="house-cal"></div></div>
+        <div class="stays-section-head"><h3 id="house-list-title">Konaklamalar</h3></div>
+        <div id="house-list" class="house-list"></div>
+      </div>
+
+      <div id="stays-body" class="hidden">
+      <div id="stays-summary" class="stays-summary"></div>
+      <div id="stays-today" class="stays-today"></div>
+
+      <div class="stays-section-head"><h3>Önümüzdeki 14 Gün</h3></div>
+      <div class="stays-cal-wrap"><div id="stays-cal" class="stays-cal"></div></div>
+
+      <div class="stays-section-head"><h3>Yaklaşan Giriş ve Çıkışlar</h3></div>
+      <div id="stays-upcoming" class="stays-upcoming"></div>
+
+      <div class="stays-section-head"><h3>Organizasyonlar</h3></div>
+      <div id="stays-events" class="stays-upcoming"></div>
+      </div>
     </section>
 
     <!-- ═══ STOK ════════════════════════════════════════════════════════ -->
@@ -842,6 +916,7 @@
   </div>
 
   <div id="overlay" class="overlay hidden" onclick="closeAll()"></div>
+  <script src="/static/konaklama.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

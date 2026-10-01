@@ -28,7 +28,8 @@ const TAB_NAMES = {
   orders:      "Siparişler",
   garden:      "Bahçe Haritası",
   bungalov:    "Bungalov",
-  stock:       "Stok",
+  stays:       "Giriş / Çıkış",
+  stock:      "Stok",
   menu:        "Menü Yönetimi",
   ingredients: "Malzemeler",
   expenses:    "Giderler",
@@ -60,7 +61,9 @@ document.addEventListener("DOMContentLoaded", () => {
   loadOrders();
   loadStock();
   loadBungalov();
+  loadStays();
   setInterval(loadOrders, 5000);
+  setInterval(loadStays, 5 * 60 * 1000); // tablo sunucuda 5 dk önbellekte
 });
 
 function updateClock() {
@@ -85,7 +88,8 @@ function switchTab(tab) {
   document.getElementById("sidebar-overlay").classList.add("hidden");
   if (tab === "stock")       renderStockAlerts();
   if (tab === "bungalov")    loadBungalov();
-  if (tab === "waiters")     loadWaiters();
+  if (tab === "stays")       { loadStays(); loadBungalov().then(renderStays); }
+  if (tab === "waiters")    loadWaiters();
   if (tab === "printers")    loadPrinterSettings();
   if (tab === "owners")      loadOwners();
   if (tab === "lodging")     loadLodgingPayments();
@@ -1619,6 +1623,358 @@ function closeAll() {
   document.querySelectorAll(".modal").forEach(m => m.classList.add("hidden"));
   document.getElementById("overlay").classList.add("hidden");
   pendingPaymentOrderId = null;
+}
+
+/* ── GİRİŞ / ÇIKIŞ (Google E-Tablolar'daki konaklama tablosu, salt okunur) ── */
+let staysData    = null;
+let staysLoading = false;
+const stayCardGuest = {}; // bungalov no → bugün kalan misafir (cari hesap açarken doldurmak için)
+
+const stayDate    = s => new Date(s + "T12:00:00");
+const stayAddDays = (s, n) => { const d = stayDate(s); d.setDate(d.getDate() + n); return d.toLocaleDateString("sv"); };
+const stayDiff    = (a, b) => Math.round((stayDate(b) - stayDate(a)) / 86400000);
+const stayDay     = s => stayDate(s).toLocaleDateString("tr-TR", { day: "numeric", month: "short", weekday: "short" });
+const trLower     = s => String(s || "").replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase().trim();
+const tlParse     = s => parseFloat(String(s).replace(/[^\d.,]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+
+async function loadStays(force = false) {
+  if (staysLoading) return;
+  staysLoading = true;
+  if (force) document.getElementById("stays-sub").textContent = "Tablo yeniden okunuyor…";
+  try {
+    const data = await (await fetch("/api/konaklama" + (force ? "?refresh=1" : ""))).json();
+    if (data.stays) {
+      staysData = data;
+      showStaysMsg(data.error || "");
+      if (data.refreshing) setTimeout(loadStays, 15000); // sunucu tabloyu arka planda tazeliyor
+    } else if (data.needs_setup) {
+      // Tablo henüz bağlanmamış: link kutusunu aç, eski görüntüyü gizle
+      staysData = null;
+      showStaysMsg("");
+      document.getElementById("stays-setup").classList.remove("hidden");
+      document.getElementById("stays-body").classList.add("hidden");
+      document.getElementById("stays-house").classList.add("hidden");
+      document.getElementById("stays-nav-count").classList.add("hidden");
+    } else {
+      showStaysMsg(data.error || "Konaklama tablosu okunamadı.");
+    }
+  } catch (e) {
+    showStaysMsg("Sunucuya ulaşılamadı.");
+  } finally {
+    staysLoading = false;
+  }
+  if (!staysData) document.getElementById("stays-sub").textContent = "Konaklama tablosu okunamadı";
+  renderStays();
+}
+
+function toggleStaysSetup() {
+  document.getElementById("stays-setup").classList.toggle("hidden");
+  document.getElementById("stays-setup-msg").textContent = "";
+}
+
+async function saveStaysSheet() {
+  const msg = document.getElementById("stays-setup-msg");
+  const res = await api("/api/konaklama/sheet", {
+    method: "PUT",
+    body: JSON.stringify({ url: document.getElementById("stays-sheet-input").value }),
+  });
+  if (res.error) { msg.className = "printer-status-msg err"; msg.textContent = res.error; return; }
+  document.getElementById("stays-sheet-input").value = "";
+  msg.className = "printer-status-msg ok";
+  msg.textContent = "Tablo bağlandı, okunuyor…";
+  await loadStays(true);
+  if (staysData) document.getElementById("stays-setup").classList.add("hidden");
+  else msg.textContent = "Tablo kaydedildi ama okunamadı — paylaşım ayarını kontrol edip Yenile'ye basın.";
+}
+
+function showStaysMsg(text) {
+  const el = document.getElementById("stays-msg");
+  el.textContent = text;
+  el.classList.toggle("hidden", !text);
+}
+
+function stayPayChip(s) {
+  if (s.due_at_door) return `<span class="pay due" title="${esc(s.paid + " · " + s.balance)}">Kapıda ${esc(s.due_at_door)}</span>`;
+  if (s.fully_paid)  return `<span class="pay ok">Ödendi</span>`;
+  const txt = s.balance || s.paid;
+  return txt ? `<span class="pay">${esc(txt)}</span>` : "";
+}
+
+function stayTel(phone) {
+  const digits = String(phone).replace(/[^\d+]/g, "");
+  return digits.length === 10 && digits[0] === "5" ? "0" + digits : digits;
+}
+
+function renderStays() {
+  const d = staysData;
+  if (!d) return;
+  const t = d.today;
+  const units = [...d.units, ...new Set(d.stays.map(s => s.unit).filter(u => !d.units.includes(u)))];
+  document.getElementById("stays-body").classList.toggle("hidden", staysView !== "overview");
+  document.getElementById("stays-house").classList.toggle("hidden", staysView !== "house");
+  if (staysView === "house") renderHouse(d, units);
+
+  document.getElementById("stays-sheet-link").href = d.sheet_url;
+  const upd = d.updated_ts ? new Date(d.updated_ts * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+  document.getElementById("stays-sub").textContent =
+    `Google E-Tablolar'daki konaklama tablosundan okunur — değişiklikleri tabloda yapın · son okuma ${upd}`;
+  if (!d.error && d.missing_months.length) showStaysMsg(`Tabloda "${d.missing_months.join('", "')}" sekmesi bulunamadı — o ayın rezervasyonları görünmez.`);
+
+  const arrivals   = d.stays.filter(s => s.checkin === t);
+  const departures = d.stays.filter(s => s.checkout === t);
+  const occupied   = new Set(d.stays.filter(s => s.checkin <= t && t < s.checkout).map(s => s.unit));
+  const dueToday   = arrivals.reduce((sum, s) => sum + tlParse(s.due_at_door), 0);
+
+  const navCount = document.getElementById("stays-nav-count");
+  navCount.textContent = arrivals.length + departures.length;
+  navCount.classList.toggle("hidden", !(arrivals.length + departures.length));
+
+  document.getElementById("stays-summary").innerHTML = `
+    <div class="ss-item"><span class="ss-lbl">Bugün giriş</span><b class="ss-num in">${arrivals.length}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Bugün çıkış</span><b class="ss-num out">${departures.length}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Dolu birim</span><b class="ss-num">${occupied.size}<small> / ${units.length}</small></b></div>
+    <div class="ss-item"><span class="ss-lbl">Bugün girenlerden kapıda</span><b class="ss-num due">${dueToday ? tlFmt(dueToday) : "—"}</b></div>`;
+
+  document.getElementById("stays-today").innerHTML = units.map(u => stayUnitCard(u, d)).join("");
+  renderStayCalendar(d, units);
+  renderStayUpcoming(d);
+  renderStayEvents(d);
+}
+
+function stayUnitCard(unit, d) {
+  const t    = d.today;
+  const mine = d.stays.filter(s => s.unit === unit);
+  const cur  = mine.find(s => s.checkin <= t && t < s.checkout);
+  const out  = mine.find(s => s.checkout === t);
+  const next = mine.find(s => s.checkin > t);
+  const arriving = cur && cur.checkin === t;
+  const [cls, label] = arriving && out ? ["in", "Çıkış + giriş"]
+                     : arriving        ? ["in", "Bugün giriş"]
+                     : out             ? ["out", "Bugün çıkış"]
+                     : cur             ? ["stay", "Konaklıyor"]
+                     :                   ["empty", "Boş"];
+
+  let html = "";
+  if (out) {
+    html += `<div class="sc-out"><span class="lbl out">Çıkış</span><span class="sc-out-name">${esc(out.guest)}</span>${out.due_at_door ? stayPayChip(out) : ""}</div>`;
+  }
+  if (cur) {
+    const left = stayDiff(t, cur.checkout);
+    const when = arriving ? "" : ` · <b>${left === 1 ? "yarın çıkış" : left + " gece kaldı"}</b>`;
+    html += `
+      <div class="sc-main">
+        ${out ? `<span class="lbl in">Giriş</span>` : ""}
+        <div class="sc-guest">${esc(cur.guest)}</div>
+        <div class="sc-line">${[cur.people, cur.nights + " gece"].filter(Boolean).map(esc).join(" · ")}</div>
+        <div class="sc-line">${stayDay(cur.checkin)} → ${stayDay(cur.checkout)}${when}</div>
+        ${cur.phone ? `<a class="sc-phone" href="tel:${esc(stayTel(cur.phone))}">${esc(cur.phone)}</a>` : ""}
+        ${cur.notes.map(n => `<div class="sc-note">${esc(n)}</div>`).join("")}
+      </div>`;
+  } else {
+    html += `<div class="sc-main sc-empty">${next ? `Sonraki giriş<br><b>${stayDay(next.checkin)}</b> · ${esc(next.guest)}` : "Yakında rezervasyon yok"}</div>`;
+  }
+
+  // Restoran cari hesabı (Bungalov sekmesi) ile bağlantı
+  const no  = Number(Object.keys(BUNGALOV_NAMES).find(k => BUNGALOV_NAMES[k] === unit));
+  const acc = no ? (bungalovData.find(b => b.no === no) || {}).account : null;
+  let cari = "";
+  if (acc) {
+    if (cur && trLower(acc.guest_name) !== trLower(cur.guest) && acc.checkin_date < cur.checkin) {
+      html += `<div class="sc-warn">Cari hesap hâlâ önceki misafirde açık (${esc(acc.guest_name)})</div>`;
+    }
+    cari = `<button class="sc-link" onclick="openBungalovModal(${acc.id})">Cari ${tlFmt(acc.total || 0)} →</button>`;
+  } else if (no && cur) {
+    stayCardGuest[no] = cur;
+    cari = `<button class="sc-link" onclick="openStayAccount(${no})">+ Cari hesap aç</button>`;
+  }
+  const pay = cur ? stayPayChip(cur) : "";
+
+  return `
+    <div class="stay-card">
+      <div class="sc-head"><span class="sc-unit">${esc(unit)}</span><span class="sc-status ${cls}">${label}</span></div>
+      ${html}
+      ${pay || cari ? `<div class="sc-foot">${pay || "<span></span>"}${cari}</div>` : ""}
+    </div>`;
+}
+
+/* Ev Ev: seçilen evin aylık takvimi ve o ayın konaklamaları */
+let staysView  = "overview";
+let houseUnits = [];
+let houseUnit  = null;
+let houseMonth = null; // "YYYY-MM"
+
+function setStaysView(view) {
+  staysView = view;
+  document.querySelectorAll(".stays-views .seg-btn").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+  renderStays();
+}
+
+function setHouseUnit(i) { houseUnit = houseUnits[i]; renderStays(); }
+
+const houseMonthList = konaklamaMonths; // static/konaklama.js
+
+function shiftHouseMonth(n) {
+  const months = houseMonthList(staysData);
+  const i = months.indexOf(houseMonth) + n;
+  if (i >= 0 && i < months.length) { houseMonth = months[i]; renderStays(); }
+}
+
+function renderHouse(d, units) {
+  houseUnits = units;
+  if (!units.includes(houseUnit)) houseUnit = units[0];
+  const months = houseMonthList(d);
+  if (!months.includes(houseMonth)) houseMonth = months.includes(d.today.slice(0, 7)) ? d.today.slice(0, 7) : months[months.length - 1];
+  const mi = months.indexOf(houseMonth);
+  const [y, m] = houseMonth.split("-").map(Number);
+  const dim = new Date(y, m, 0).getDate();
+  const first = `${houseMonth}-01`;
+  const after = stayAddDays(first, dim); // ayın son gününden sonraki gün
+
+  document.getElementById("house-tabs").innerHTML = units.map((u, i) =>
+    `<button class="seg-btn${u === houseUnit ? " active" : ""}" onclick="setHouseUnit(${i})">${esc(u)}</button>`).join("");
+  document.getElementById("house-month").textContent = new Date(y, m - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  document.getElementById("house-prev").disabled = mi <= 0;
+  document.getElementById("house-next").disabled = mi >= months.length - 1;
+
+  const mine = d.stays.filter(s => s.unit === houseUnit);
+  const inMonth = mine.map((s, k) => ({ s, k })).filter(({ s }) => s.checkin < after && s.checkout > first);
+
+  // Takvim: Pazartesi başlar; dolu geceler birbirine bağlanan şeritlerle gösterilir
+  const lead = (stayDate(first).getDay() + 6) % 7;
+  let html = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"].map(w => `<div class="hc-wd">${w}</div>`).join("");
+  html += `<div class="hc-day blank"></div>`.repeat(lead);
+  for (let n = 1; n <= dim; n++) {
+    const ds  = `${houseMonth}-${String(n).padStart(2, "0")}`;
+    const dow = (lead + n - 1) % 7;
+    const k   = mine.findIndex(s => s.checkin <= ds && ds < s.checkout);
+    let bar = "";
+    if (k >= 0) {
+      const s = mine[k];
+      const start = s.checkin === ds, end = stayAddDays(ds, 1) === s.checkout;
+      bar = `<div class="hc-bar${k % 2 ? " alt" : ""}${start ? " s" : ""}${end ? " e" : ""}" onclick="focusHouseStay(${k})"
+        title="${esc(`${s.guest} · ${stayDay(s.checkin)} → ${stayDay(s.checkout)} · ${s.nights} gece`)}">${start || dow === 0 || n === 1 ? esc(s.guest) : ""}</div>`;
+    }
+    html += `<div class="hc-day${dow >= 5 ? " we" : ""}${ds === d.today ? " today" : ""}${ds < d.today ? " past" : ""}"><span class="hc-num">${n}</span>${bar}</div>`;
+  }
+  html += `<div class="hc-day blank"></div>`.repeat((7 - (lead + dim) % 7) % 7);
+  document.getElementById("house-cal").innerHTML = html;
+
+  // Rakamlar Z Raporu › Konaklama ile aynı hesaptan gelir (static/konaklama.js)
+  const st    = konaklamaMonthStats(d, houseUnit, houseMonth);
+  const money = n => n ? tlFmt(n) : "—";
+  document.getElementById("house-stats").innerHTML = `
+    <div class="ss-item"><span class="ss-lbl">Konaklama</span><b class="ss-num">${inMonth.length}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Dolu gece</span><b class="ss-num">${st.busy}<small> / ${st.dim}</small></b></div>
+    <div class="ss-item"><span class="ss-lbl">Doluluk</span><b class="ss-num">%${st.occupancy}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Toplam kazanç</span><b class="ss-num in">${money(st.total)}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Önden alınan</span><b class="ss-num">${money(st.prepaid)}</b></div>
+    <div class="ss-item"><span class="ss-lbl">Kalan ödenecek tutar</span><b class="ss-num due">${money(st.left)}</b></div>`;
+  document.getElementById("house-stats-note").textContent =
+    "Tutarlar bu ay giriş yapan konaklamalardan hesaplanır · Kalan: henüz gelmemiş misafirlerin kapıda ödeyeceği" +
+    (st.unknown ? ` · ${st.unknown} konaklamada tutar tablodan okunamadı` : "");
+
+  document.getElementById("house-list-title").textContent = `${houseUnit} — ${document.getElementById("house-month").textContent} konaklamaları`;
+  document.getElementById("house-list").innerHTML = inMonth.length ? inMonth.map(({ s, k }) => {
+    const now  = s.checkin <= d.today && d.today < s.checkout;
+    const past = s.checkout <= d.today;
+    const m    = stayMoney(s);
+    const prev = s.checkin < first; // önceki ayda girmiş, parası o aya yazılır
+    const raw  = prev
+      ? `Ücreti ${stayDate(s.checkin).toLocaleDateString("tr-TR", { month: "long" })} ayına yazıldı`
+      : m.known
+      ? `Toplam ${tlFmt(m.total)} · Önden ${tlFmt(m.prepaid)}${m.due ? ` · Kapıda ${tlFmt(m.due)}` : ""}`
+      : [s.paid, s.balance].filter(Boolean).map(esc).join(" · ");
+    return `
+      <div class="hs-row${past ? " past" : ""}" id="hs-${k}">
+        <span class="hs-mark${k % 2 ? " alt" : ""}"></span>
+        <div class="hs-dates">
+          <b>${stayDate(s.checkin).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} → ${stayDate(s.checkout).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })}</b>
+          <span>${stayDate(s.checkin).toLocaleDateString("tr-TR", { weekday: "short" })} → ${stayDate(s.checkout).toLocaleDateString("tr-TR", { weekday: "short" })} · ${s.nights} gece</span>
+        </div>
+        <div class="hs-guest">
+          <b>${esc(s.guest)}${now ? ` <span class="lbl in">Şu an</span>` : ""}</b>
+          <span>${[s.people && esc(s.people), s.phone && `<a class="sc-phone" href="tel:${esc(stayTel(s.phone))}">${esc(s.phone)}</a>`].filter(Boolean).join(" · ")}</span>
+          ${s.notes.map(n => `<div class="sc-note">${esc(n)}</div>`).join("")}
+        </div>
+        <div class="hs-pay">${prev ? "" : stayPayChip(s)}${raw ?`<span class="hs-raw" title="${esc([s.paid, s.balance].filter(Boolean).join(" · "))}">${raw}</span>` : ""}${m.mismatch && !prev ? `<span class="hs-warn">Tablodaki tutarlar tutmuyor</span>` : ""}</div>
+      </div>`;
+  }).join("") : `<p class="sc-empty">Bu ay ${esc(houseUnit)} için kayıt yok.</p>`;
+}
+
+const stayMoney = konaklamaMoney; // static/konaklama.js
+
+function focusHouseStay(k) {
+  const el = document.getElementById(`hs-${k}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.remove("flash");
+  void el.offsetWidth; // animasyonu yeniden başlat
+  el.classList.add("flash");
+}
+
+function openStayAccount(no) {
+  const s = stayCardGuest[no];
+  openBungalovOpenModal(no);
+  if (!s) return;
+  document.getElementById("bungalov-guest-name").value = s.guest;
+  document.getElementById("bungalov-checkin").value    = s.checkin;
+  document.getElementById("bungalov-open-notes").value = [s.people, s.notes.join(", ")].filter(Boolean).join(" · ");
+}
+
+function renderStayCalendar(d, units) {
+  const N = 14, t = d.today;
+  const days = Array.from({ length: N }, (_, i) => stayAddDays(t, i));
+  const dayCls = (day, i) => ([0, 6].includes(stayDate(day).getDay()) ? " we" : "") + (i === 0 ? " today" : "");
+  let html = `<div class="cal-corner"></div>`;
+  days.forEach((day, i) => {
+    const dt = stayDate(day);
+    html += `<div class="cal-day${dayCls(day, i)}" style="grid-column:${i + 2}"><span>${i === 0 ? "Bugün" : dt.toLocaleDateString("tr-TR", { weekday: "short" })}</span><b>${dt.getDate()}</b></div>`;
+  });
+  units.forEach((u, r) => {
+    const row = r + 2;
+    html += `<div class="cal-unit" style="grid-row:${row}">${esc(u)}</div>`;
+    days.forEach((day, i) => { html += `<div class="cal-cell${dayCls(day, i)}" style="grid-row:${row};grid-column:${i + 2}"></div>`; });
+    // Ard arda gelen konaklamalar birbirinden ayırt edilsin diye iki ton sırayla
+    d.stays.filter(s => s.unit === u).forEach((s, k) => {
+      const a = Math.max(0, stayDiff(t, s.checkin));
+      const b = Math.min(N, stayDiff(t, s.checkout));
+      if (b <= a) return;
+      const tip = `${s.guest} · ${stayDay(s.checkin)} → ${stayDay(s.checkout)} · ${s.nights} gece${s.people ? " · " + s.people : ""}${s.due_at_door ? " · Kapıda " + s.due_at_door : ""}`;
+      html += `<div class="cal-bar${k % 2 ? " alt" : ""}${s.checkin < t ? " cont" : ""}" style="grid-row:${row};grid-column:${a + 2}/${b + 2}" title="${esc(tip)}">${esc(s.guest)}</div>`;
+    });
+  });
+  document.getElementById("stays-cal").innerHTML = html;
+}
+
+function renderStayUpcoming(d) {
+  const row = (s, kind) => `
+    <div class="up-row">
+      <span class="lbl ${kind}">${kind === "in" ? "Giriş" : "Çıkış"}</span>
+      <span class="up-unit">${esc(s.unit)}</span>
+      <span class="up-guest">${esc(s.guest)}</span>
+      <span class="up-meta">${kind === "in" ? [s.people, s.nights + " gece"].filter(Boolean).map(esc).join(" · ") : ""}</span>
+      <span class="up-pay">${kind === "in" ? stayPayChip(s) : ""}</span>
+    </div>`;
+  let html = "";
+  for (let i = 1; i <= 7; i++) {
+    const day  = stayAddDays(d.today, i);
+    const outs = d.stays.filter(s => s.checkout === day);
+    const ins  = d.stays.filter(s => s.checkin === day);
+    if (!outs.length && !ins.length) continue;
+    const label = stayDate(day).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+    html += `<div class="up-day"><div class="up-date">${i === 1 ? "Yarın · " : ""}${label}</div>
+      ${outs.map(s => row(s, "out")).join("")}${ins.map(s => row(s, "in")).join("")}</div>`;
+  }
+  document.getElementById("stays-upcoming").innerHTML = html || `<p class="sc-empty">Önümüzdeki 7 günde giriş ya da çıkış yok.</p>`;
+}
+
+function renderStayEvents(d) {
+  document.getElementById("stays-events").innerHTML = d.events.length
+    ? d.events.map(e => `
+        <div class="up-day"><div class="up-date">${e.date === d.today ? "Bugün · " : ""}${stayDate(e.date).toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}</div>
+          <div class="up-row ev"><span class="lbl ev">Org.</span><span class="up-guest">${esc(e.lines[0])}</span><span class="up-meta">${e.lines.slice(1).map(esc).join(" · ")}</span></div>
+        </div>`).join("")
+    : `<p class="sc-empty">Önümüzdeki 14 günde organizasyon yok.</p>`;
 }
 
 /* ── UTIL ────────────────────────────────────────────────────────────────── */

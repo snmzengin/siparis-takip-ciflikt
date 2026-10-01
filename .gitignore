@@ -2,6 +2,9 @@
 restaurant.db
 restaurant.db-journal
 
+# Konaklama tablosunun son okunan kopyası — misafir adı/telefonu içerir
+konaklama_cache.json
+
 # Yüklenen fatura görselleri — gerçek işletme verisi
 static/uploads/
 

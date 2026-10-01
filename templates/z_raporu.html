@@ -239,6 +239,27 @@
     .empty { color: var(--ink-3); font-size: 0.9rem; text-align: center; padding: 22px 0; }
     .error-banner { background: rgba(180, 67, 47, 0.10); color: var(--down); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 600; font-size: 0.88rem; }
 
+    /* Satış | Konaklama geçişi */
+    .view-seg { margin-bottom: 18px; }
+    .view-seg button { padding: 8px 22px; font-size: 0.92rem; }
+    .house-seg { flex-wrap: wrap; }
+
+    /* Konaklama listesi */
+    .zs-list { display: flex; flex-direction: column; }
+    .zs-row {
+      display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+      padding: 11px 0; border-bottom: 1px solid var(--line);
+    }
+    .zs-row:last-child { border-bottom: none; }
+    .zs-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .zs-row b { font-weight: 600; }
+    .zs-row small { color: var(--ink-3); font-size: 0.8rem; }
+    .zs-guest b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .zs-amt { text-align: right; }
+    .zs-amt b { font-size: 1.05rem; }
+    .zs-amt .warn { color: var(--down); font-weight: 600; }
+    .zs-row .fut { color: var(--gold-dark); font-weight: 600; }
+
     .toast {
       position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
       background: rgba(33, 28, 18, 0.86); color: #fff; padding: 11px 18px; border-radius: 12px;
@@ -267,10 +288,15 @@
       .date-label { min-width: 0; }
       .print-actions { width: 100%; margin-left: 0; }
       .print-actions .btn { flex: 1; }
+      .view-seg { width: 100%; }
+      .house-seg { flex: none; width: 100%; }
+      .house-seg button { flex: 1 1 auto; white-space: nowrap; }
+      .zs-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+      .zs-row .zs-date { grid-column: 1 / -1; flex-direction: row; gap: 8px; align-items: baseline; }
     }
 
     @media print {
-      body::before, .topbar, .controls .seg, .date-nav button, #today-btn, .print-actions, .toast { display: none !important; }
+      body::before, .topbar, .controls .seg, .view-seg, .date-nav button, #today-btn, .print-actions, .toast { display: none !important; }
       body, html { background: #fff; }
       .glass { background: #fff; box-shadow: none; border: 1px solid #ddd; -webkit-backdrop-filter: none; backdrop-filter: none; }
       .date-nav { padding: 0; }
@@ -327,6 +353,80 @@
         <p id="greet-date"></p>
       </div>
 
+      <div class="seg view-seg" id="view-seg">
+        <button data-view="sales" class="active">Satış</button>
+        <button data-view="lodging">Konaklama</button>
+      </div>
+
+      <!-- ── KONAKLAMA (Google E-Tablolar'daki konaklama tablosundan) ── -->
+      <div id="lodging-view" hidden>
+        <div class="controls">
+          <div class="seg house-seg" id="house-seg"></div>
+          <div class="date-nav glass">
+            <button id="k-prev" aria-label="Önceki ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <span class="date-label" id="k-month"></span>
+            <button id="k-next" aria-label="Sonraki ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+          <span class="updated" id="k-updated"></span>
+          <div class="print-actions">
+            <button class="btn" onclick="window.print()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Yazdır
+            </button>
+          </div>
+        </div>
+
+        <div id="k-banner" class="error-banner" hidden></div>
+
+        <section class="kpis">
+          <div class="card kpi hero glass">
+            <div class="label" id="k-total-label">Toplam Kazanç</div>
+            <div class="value num" id="k-total">—</div>
+            <div class="meta" id="k-total-meta"></div>
+          </div>
+          <div class="card kpi glass">
+            <div class="label">Önden Alınan</div>
+            <div class="value num" id="k-prepaid">—</div>
+            <div class="meta" id="k-prepaid-meta"></div>
+          </div>
+          <div class="card kpi glass">
+            <div class="label">Kalan Ödenecek</div>
+            <div class="value num" id="k-left">—</div>
+            <div class="meta">henüz gelmemiş misafirlerden</div>
+          </div>
+          <div class="card kpi glass">
+            <div class="label">Doluluk</div>
+            <div class="value num" id="k-occ">—</div>
+            <div class="meta num" id="k-occ-meta"></div>
+          </div>
+          <div class="card kpi glass">
+            <div class="label">Gece Başı Gelir</div>
+            <div class="value num" id="k-avg">—</div>
+            <div class="meta" id="k-avg-meta"></div>
+          </div>
+        </section>
+
+        <section class="grid-2">
+          <div class="card glass">
+            <h2>Evlere Göre</h2>
+            <p class="hint">Bu ay giriş yapan konaklamaların toplam kazancı · doluluk</p>
+            <div id="k-houses"></div>
+          </div>
+          <div class="card glass">
+            <h2>Tahsilat Durumu</h2>
+            <p class="hint">Toplam kazancın ne kadarı önden, ne kadarı kapıda alındı / alınacak</p>
+            <div id="k-split"></div>
+          </div>
+        </section>
+
+        <section class="card glass">
+          <h2 id="k-list-title">Konaklamalar</h2>
+          <p class="hint" id="k-list-hint">Ay sonundan sonraki aya sarkan konaklama, giriş yaptığı aya yazılır</p>
+          <div id="k-list"></div>
+        </section>
+      </div>
+
+      <div id="sales-view">
       <div class="controls">
         <div class="seg" id="period-seg">
           <button data-period="daily" class="active">Günlük</button>
@@ -438,9 +538,11 @@
         <p class="hint">Satılan adete göre ilk 10 ürün</p>
         <div id="products"></div>
       </section>
+      </div><!-- /sales-view -->
     </main>
   </div>
 
+<script src="/static/konaklama.js"></script>
 <script>
 /* ── YARDIMCILAR ──────────────────────────────────────────── */
 const tl = n => "₺" + Math.round(n || 0).toLocaleString("tr-TR");
@@ -501,10 +603,22 @@ function showDash(user) {
   document.getElementById("greet-name").textContent = user.display_name || user.username;
   document.getElementById("greet-date").textContent =
     new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  load();
+  refreshView();
   clearInterval(refreshTimer);
-  refreshTimer = setInterval(load, 60000);
+  refreshTimer = setInterval(refreshView, 60000);
 }
+
+/* ── SATIŞ | KONAKLAMA ────────────────────────────────────── */
+let view = "sales";
+document.querySelectorAll("#view-seg button").forEach(b => b.addEventListener("click", () => {
+  view = b.dataset.view;
+  document.querySelectorAll("#view-seg button").forEach(x => x.classList.toggle("active", x === b));
+  document.getElementById("sales-view").hidden = view !== "sales";
+  document.getElementById("lodging-view").hidden = view !== "lodging";
+  refreshView();
+}));
+
+function refreshView() { return view === "lodging" ? loadKonaklama() : load(); }
 
 /* ── DÖNEM SEÇİMİ ─────────────────────────────────────────── */
 document.querySelectorAll("#period-seg button").forEach(b => b.addEventListener("click", () => {
@@ -702,9 +816,9 @@ function renderServices(r) {
   ], r.breakfast_total + r.dinner_total);
 }
 
-function renderSplit(id, parts, total) {
+function renderSplit(id, parts, total, emptyText = "Bu dönemde satış yok") {
   const el = document.getElementById(id);
-  if (!total) { el.innerHTML = `<div class="empty">Bu dönemde satış yok</div>`; return; }
+  if (!total) { el.innerHTML = `<div class="empty">${emptyText}</div>`; return; }
   const pct = v => Math.round(v / total * 100);
   el.innerHTML = `
     <div class="split-bar">
@@ -735,6 +849,105 @@ function renderRank(id, rows, emptyText) {
       </div>
       <div class="track"><div class="fill" style="width:${r.value / max * 100}%"></div></div>
     </div>`).join("")}</div>`;
+}
+
+/* ── KONAKLAMA ────────────────────────────────────────────── */
+// Hesaplar static/konaklama.js'te — panelin Giriş / Çıkış › Ev Ev ekranıyla aynı rakamlar
+let kData = null;
+let kUnit = "";    // "" = tüm evler
+let kMonth = null; // "YYYY-MM"
+let kRetry = null;
+
+document.getElementById("k-prev").addEventListener("click", () => shiftKMonth(-1));
+document.getElementById("k-next").addEventListener("click", () => shiftKMonth(1));
+
+async function loadKonaklama() {
+  const { status, data } = await api("/api/konaklama");
+  if (status === 401) { clearInterval(refreshTimer); return init(); }
+  const banner = document.getElementById("k-banner");
+  if (data.stays) {
+    kData = data;
+    banner.textContent = data.error || "";
+    banner.hidden = !data.error;
+    clearTimeout(kRetry);
+    if (data.refreshing) kRetry = setTimeout(loadKonaklama, 15000); // sunucu tabloyu arka planda tazeliyor
+  } else {
+    banner.textContent = data.error || "Konaklama tablosu okunamadı, birazdan tekrar denenecek.";
+    banner.hidden = false;
+  }
+  renderKonaklama();
+}
+
+function setKUnit(i) { kUnit = i < 0 ? "" : kData.units[i]; renderKonaklama(); }
+
+function shiftKMonth(dir) {
+  const months = konaklamaMonths(kData);
+  const i = months.indexOf(kMonth) + dir;
+  if (i >= 0 && i < months.length) { kMonth = months[i]; renderKonaklama(); }
+}
+
+const kDate = (s, opts) => new Date(s + "T12:00:00").toLocaleDateString("tr-TR", opts);
+
+function renderKonaklama() {
+  const d = kData;
+  if (!d) return;
+  const months = konaklamaMonths(d);
+  if (!months.includes(kMonth)) kMonth = months.includes(d.today.slice(0, 7)) ? d.today.slice(0, 7) : months[months.length - 1];
+  const mi = months.indexOf(kMonth);
+  document.getElementById("k-prev").disabled = mi <= 0;
+  document.getElementById("k-next").disabled = mi >= months.length - 1;
+  const monthName = kDate(`${kMonth}-01`, { month: "long", year: "numeric" });
+  document.getElementById("k-month").textContent = monthName;
+  document.getElementById("k-updated").textContent = d.updated_ts
+    ? "Tablo okundu " + new Date(d.updated_ts * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+
+  document.getElementById("house-seg").innerHTML = ["", ...d.units].map((u, i) =>
+    `<button class="${u === kUnit ? "active" : ""}" onclick="setKUnit(${i - 1})">${u ? esc(u) : "Tüm Evler"}</button>`).join("");
+
+  const st = konaklamaMonthStats(d, kUnit, kMonth);
+  const pct = (a, b) => b ? Math.round(a * 100 / b) : 0;
+  document.getElementById("k-total-label").textContent = kUnit ? `${kUnit} — Toplam Kazanç` : "Toplam Kazanç";
+  document.getElementById("k-total").textContent = tl(st.total);
+  document.getElementById("k-total-meta").textContent = `${st.started.length} konaklama · ${st.startedNights} gece`;
+  document.getElementById("k-prepaid").textContent = tl(st.prepaid);
+  document.getElementById("k-prepaid-meta").textContent = st.total ? `toplamın %${pct(st.prepaid, st.total)}'i` : "";
+  document.getElementById("k-left").textContent = st.left ? tl(st.left) : "—";
+  document.getElementById("k-occ").textContent = `%${st.occupancy}`;
+  document.getElementById("k-occ-meta").textContent = `${st.busy} / ${st.capacity} gece dolu`;
+  document.getElementById("k-avg").textContent = st.startedNights ? tl(st.total / st.startedNights) : "—";
+  document.getElementById("k-avg-meta").textContent = st.started.length
+    ? `ortalama ${(st.startedNights / st.started.length).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} gece kalış` : "";
+
+  // Evlere göre — seçili ev olsa da hepsi görünür, karşılaştırma için
+  renderRank("k-houses", d.units
+    .map(u => ({ u, s: konaklamaMonthStats(d, u, kMonth) }))
+    .sort((a, b) => b.s.total - a.s.total)
+    .map(({ u, s }) => ({ name: u, value: s.total, label: tl(s.total), sub: `%${s.occupancy} doluluk · ${s.started.length} konaklama` })),
+    "Bu ay kayıt yok");
+
+  renderSplit("k-split", [
+    { name: "Önden alınan", value: st.prepaid, color: "var(--accent)" },
+    { name: "Kapıda alınan", sub: "misafir geldi", value: st.doorPaid, color: "var(--c-nakit)" },
+    { name: "Kalan ödenecek", sub: "henüz gelmedi", value: st.left, color: "var(--c-havale)" },
+  ], st.total, "Bu ay giriş yapan konaklama yok");
+
+  document.getElementById("k-list-title").textContent = `${kUnit || "Tüm evler"} — ${monthName} konaklamaları`;
+  document.getElementById("k-list-hint").textContent = "Bu ay giriş yapanlar · ay sonundan sonraki aya sarkan konaklama, giriş yaptığı aya yazılır" +
+    (st.unknown ? ` · ${st.unknown} konaklamada tutar tabloda yok (ücretsiz / not)` : "");
+  const list = document.getElementById("k-list");
+  if (!st.started.length) { list.innerHTML = `<div class="empty">Bu ay giriş yapan konaklama yok</div>`; return; }
+  list.innerHTML = `<div class="zs-list">${st.started.map(s => {
+    const m = konaklamaMoney(s);
+    const amt = m.known
+      ? `<b class="num">${tl(m.total)}</b><small class="num">önden ${tl(m.prepaid)}${m.due ? ` · kapıda ${tl(m.due)}` : ""}</small>`
+      : `<b>—</b><small>${esc([s.paid, s.balance].filter(Boolean).join(" · ") || "tutar yok")}</small>`;
+    return `
+      <div class="zs-row">
+        <div class="zs-date"><b>${kDate(s.checkin, { day: "numeric", month: "short" })} → ${kDate(s.checkout, { day: "numeric", month: "short" })}</b><small>${s.nights} gece${s.checkin >= d.today ? ` · <span class="fut">gelecek</span>` : ""}</small></div>
+        <div class="zs-guest"><b>${esc(s.guest)}</b><small>${[kUnit ? "" : s.unit, s.people].filter(Boolean).map(esc).join(" · ")}</small></div>
+        <div class="zs-amt">${amt}${m.mismatch ? `<small class="warn">tablodaki tutarlar tutmuyor</small>` : ""}</div>
+      </div>`;
+  }).join("")}</div>`;
 }
 
 /* ── YAZDIRMA ─────────────────────────────────────────────── */

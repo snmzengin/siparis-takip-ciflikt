@@ -1530,6 +1530,282 @@ def delete_lodging_payment(pid):
     return jsonify({"ok": True})
 
 
+# ── KONAKLAMA TAKVİMİ (Google E-Tablolar'dan okunur, panelden yazılmaz) ──────
+# Tablo düzeni: her ay ayrı sekme ("Ekim 2026"). Her birim bir blok: "TARİH" satırı
+# (sütun başına bir gece), altında birim adı + misafir adı, telefon, kişi, ödeme,
+# bakiye ve not satırları. Ard arda aynı isim yazılan geceler tek konaklamadır.
+
+# Tablo kimliği koda yazılmaz (repo herkese açık; tablo linki olan misafir listesini görür):
+# panelden girilip settings tablosunda tutulur, istenirse ortam değişkeniyle de verilebilir.
+KONAKLAMA_CACHE_SEC = 300
+TR_MONTHS = ["ocak", "şubat", "mart", "nisan", "mayıs", "haziran",
+             "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık"]
+_konaklama_cache = {"data": None, "at": 0.0, "tabs": None, "tabs_at": 0.0}
+_konaklama_lock = threading.Lock()
+
+
+def _tr_lower(s):
+    return " ".join((s or "").replace("İ", "i").replace("I", "ı").lower().split())
+
+
+def _tr_today():
+    return (datetime.utcnow() + timedelta(hours=3)).date()
+
+
+def _sheet_get(url, tries=10, budget=12):
+    import urllib.request, time
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    deadline = time.time() + budget  # gunicorn'un 30 sn sınırına takılmasın
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=max(2, min(6, deadline - time.time()))) as r:
+                return r.read().decode("utf-8")
+        except OSError:  # bağlantı kopması / zaman aşımı — kısa bekleyip tekrar dene
+            # (DPI aracı olan ağlarda TLS el sıkışması sık kopabiliyor)
+            if attempt == tries - 1 or time.time() + 0.3 >= deadline:
+                raise
+            time.sleep(0.3)
+
+
+def _konaklama_sheet_id():
+    return os.environ.get("KONAKLAMA_SHEET_ID") or get_setting("konaklama_sheet_id")
+
+
+def _konaklama_tabs(sheet_id):
+    """Ay sekmelerini {(yıl, ay): gid} olarak döndürür; yeni açılan sekmeler için saatte bir tazelenir."""
+    import re, time
+    c = _konaklama_cache
+    if c["tabs"] and time.time() - c["tabs_at"] < 3600:
+        return c["tabs"]
+    html = _sheet_get(f"https://docs.google.com/spreadsheets/d/{sheet_id}/htmlview")
+    tabs = {}
+    for name, gid in re.findall(r'name: "([^"]+)"[^}]*?gid: "(\d+)"', html):
+        n = _tr_lower(name).replace("-", " ")
+        year = re.search(r"(20\d\d)", n)
+        month = next((i + 1 for i, m in enumerate(TR_MONTHS) if m in n), None)
+        if year and month:
+            tabs.setdefault((int(year.group(1)), month), gid)
+    if not tabs:
+        raise RuntimeError("Tabloda ay sekmesi bulunamadı (sekme adları 'Ekim 2026' gibi olmalı)")
+    c["tabs"], c["tabs_at"] = tabs, time.time()
+    return tabs
+
+
+def _parse_sheet_date(text):
+    import re
+    from datetime import date
+    m = re.match(r"(\d{1,2})\s+(\S+)\s+(20\d\d)", _tr_lower(text))
+    if not m or m.group(2) not in TR_MONTHS:
+        return None
+    try:
+        return date(int(m.group(3)), TR_MONTHS.index(m.group(2)) + 1, int(m.group(1)))
+    except ValueError:
+        return None
+
+
+def _unit_name(label):
+    l = _tr_lower(label)
+    if "organizasyon" in l:
+        return None
+    for key, name in (("bungalov 1", "Bungalov 1"), ("bungalov 2", "Bungalov 2"),
+                      ("dağ evi", "Dağ Evi"), ("kütük", "Kütük Ev")):
+        if key in l:
+            return name
+    return label.strip().title()
+
+
+def _parse_konaklama_tab(csv_text):
+    """Bir ay sekmesini gece kayıtlarına ve organizasyonlara çevirir."""
+    import csv, io
+    rows = list(csv.reader(io.StringIO(csv_text)))
+    cell = lambda r, i: r[i].strip() if i < len(r) else ""
+    nights, events = [], []
+    # Başlık satırı A sütunundaki "TARİH" yazısından değil tarihlerden tanınır
+    # (Ağustos 2026 sekmesinde A1 hücresine "TARİH" yerine yanlışlıkla " yazılmış)
+    starts = [i for i, r in enumerate(rows) if sum(1 for v in r[1:8] if _parse_sheet_date(v)) >= 3]
+    for bi, start in enumerate(starts):
+        end = starts[bi + 1] if bi + 1 < len(starts) else len(rows)
+        block = rows[start + 1:end]
+        if not block:
+            continue
+        unit = _unit_name(cell(block[0], 0))
+        for col in range(1, len(rows[start])):
+            day = _parse_sheet_date(cell(rows[start], col))
+            if not day:
+                continue
+            vals = [cell(r, col) for r in block]
+            vals = ["" if v in ("<", ">", "-", "—") else v for v in vals]
+            if not any(vals):
+                continue
+            if unit is None:
+                events.append({"date": day.isoformat(), "lines": [v for v in vals if v]})
+                continue
+            vals += [""] * (5 - len(vals))
+            name = vals[0]
+            if not name:  # isim satırı boş ama isim/not başka satıra yazılmış
+                k = next(i for i, v in enumerate(vals) if v)
+                name, vals[k] = vals[k], ""
+            nights.append({
+                "unit": unit, "date": day, "guest": name, "phone": vals[1], "people": vals[2],
+                "paid": vals[3], "balance": vals[4], "notes": [v for v in vals[5:] if v],
+            })
+    return nights, events
+
+
+def _merge_stays(nights):
+    import re
+    stays = []
+    for n in sorted(nights, key=lambda n: (n["unit"], n["date"])):
+        last = stays[-1] if stays else None
+        if (last and last["unit"] == n["unit"] and last["_last"] + timedelta(days=1) == n["date"]
+                and _tr_lower(last["guest"]) == _tr_lower(n["guest"])):
+            last["_last"] = n["date"]
+            last["phone"] = last["phone"] or n["phone"]
+            last["people"] = last["people"] or n["people"]
+            last["notes"] += [x for x in n["notes"] if x not in last["notes"]]
+            continue
+        stays.append({**n, "_first": n["date"], "_last": n["date"], "notes": list(n["notes"])})
+    out = []
+    for s in stays:
+        pay = _tr_lower(s["paid"] + " " + s["balance"])
+        due = re.search(r"([\d.,]+)\s*₺?\s*kap[ıi]da", pay)
+        out.append({
+            "unit": s["unit"], "guest": s["guest"], "phone": s["phone"], "people": s["people"],
+            "paid": s["paid"], "balance": s["balance"], "notes": s["notes"],
+            "due_at_door": due.group(1) + "₺" if due else "",
+            "fully_paid": "tamamı ödendi" in pay,
+            "checkin": s["_first"].isoformat(),
+            "checkout": (s["_last"] + timedelta(days=1)).isoformat(),
+            "nights": (s["_last"] - s["_first"]).days + 1,
+        })
+    return out
+
+
+def _load_konaklama():
+    from concurrent.futures import ThreadPoolExecutor
+    today = _tr_today()
+    sheet_id = _konaklama_sheet_id()
+    tabs = _konaklama_tabs(sheet_id)
+    # 3 ay geri + bu ay + 2 ay ileri okunur. En eski ay görüntülenmez; yalnızca ondan sonraki ayın
+    # başına sarkan konaklamaların gerçek giriş gününü bulmak için okunur (örn. 31 Ağu → 2 Eyl
+    # konaklamasının parası Ağustos'a yazılsın, Eylül'e değil).
+    months = []
+    y, m = today.year, today.month
+    for _ in range(3):
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    for _ in range(6):
+        months.append((y, m))
+        y, m = (y, m + 1) if m < 12 else (y + 1, 1)
+    viewable, current = months[1:], months[3]
+    urls = [f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={tabs[k]}"
+            for k in months if k in tabs]
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        texts = list(ex.map(_sheet_get, urls))
+    nights, events = [], []
+    for t in texts:
+        n, e = _parse_konaklama_tab(t)
+        nights += n
+        events += e
+    # Ev Ev görünümü görüntülenebilir aylarda gezilir; sınır ayında başlayıp bitenler gönderilmez
+    first_view = f"{viewable[0][0]}-{viewable[0][1]:02d}-01"
+    stays = [s for s in _merge_stays(nights) if s["checkout"] > first_view]
+    events = [e for e in events if today.isoformat() <= e["date"] <= (today + timedelta(days=14)).isoformat()]
+    return {
+        "today": today.isoformat(),
+        "units": LODGING_UNITS,
+        "months": [f"{y}-{m:02d}" for y, m in viewable if (y, m) in tabs],
+        "stays": sorted(stays, key=lambda s: (s["checkin"], s["unit"])),
+        "events": sorted(events, key=lambda e: e["date"]),
+        "missing_months": [f"{TR_MONTHS[m - 1].capitalize()} {y}" for y, m in [current] if (y, m) not in tabs],
+        "sheet_url": f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit",
+    }
+
+
+KONAKLAMA_DISK_CACHE = os.path.join(os.path.dirname(__file__), "konaklama_cache.json")
+
+
+def _konaklama_from_disk():
+    """Son başarılı okuma — Google'a ulaşılamazken sunucu yeniden başlasa da ekran boş kalmasın."""
+    import json
+    try:
+        with open(KONAKLAMA_DISK_CACHE, encoding="utf-8") as f:
+            saved = json.load(f)
+        return saved["data"], saved["at"]
+    except (OSError, ValueError, KeyError):
+        return None, 0.0
+
+
+def _refresh_konaklama():
+    """Tabloyu Google'dan yeniden okur; ağ yavaşsa 10+ sn sürebilir."""
+    import json, time
+    c = _konaklama_cache
+    try:
+        c["data"], c["at"] = _load_konaklama(), time.time()
+        c["fail_at"], c["fail"] = 0, None
+        try:
+            with open(KONAKLAMA_DISK_CACHE, "w", encoding="utf-8") as f:
+                json.dump({"data": c["data"], "at": c["at"]}, f, ensure_ascii=False)
+        except OSError:
+            pass
+    except Exception as e:
+        e = getattr(e, "reason", None) or e  # URLError asıl nedeni reason içinde taşır
+        c["fail_at"], c["fail"] = time.time(), type(e).__name__
+        app.logger.warning("Konaklama tablosu okunamadı: %r", e)
+    finally:
+        c["refreshing"] = False
+
+
+@app.route("/api/konaklama")
+def konaklama_calendar():
+    import time
+    c = _konaklama_cache
+    force = request.args.get("refresh") == "1"
+    if not _konaklama_sheet_id():
+        return jsonify({"needs_setup": True,
+                        "error": "Konaklama tablosu bağlı değil — ana panelde Giriş / Çıkış sekmesinden tablo linkini girin."}), 404
+    with _konaklama_lock:
+        if not c["data"]:
+            c["data"], c["at"] = _konaklama_from_disk()
+        fresh = c["data"] and time.time() - c["at"] < KONAKLAMA_CACHE_SEC and c["data"]["today"] == _tr_today().isoformat()
+        # Başarısız denemeden sonra 1 dk bekle; her sayfa yenilemesi Google'ı tekrar tekrar beklemesin
+        backoff = time.time() - c.get("fail_at", 0) < 60
+        if force or not c["data"]:
+            if force:
+                c["tabs"] = None
+            c["refreshing"] = True
+            _refresh_konaklama()  # Yenile'ye basıldı ya da elde hiç veri yok: sonucu bekle
+        elif not fresh and not backoff and not c.get("refreshing"):
+            # Eldeki veriyi hemen göster, tabloyu arka planda tazele (sonraki istekte görünür)
+            c["refreshing"] = True
+            threading.Thread(target=_refresh_konaklama, daemon=True).start()
+        if not c["data"]:
+            return jsonify({"error": f"Google tablosuna şu an bağlanılamıyor ({c.get('fail')}). Biraz sonra Yenile'ye basın."}), 502
+        out = {**c["data"], "updated_ts": c["at"], "today": _tr_today().isoformat(),
+               "refreshing": bool(c.get("refreshing"))}
+        if c.get("fail") and (force or not fresh):
+            out["error"] = "Google tablosuna şu an bağlanılamıyor — son okunan bilgiler gösteriliyor."
+    return jsonify(out)
+
+
+@app.route("/api/konaklama/sheet", methods=["PUT"])
+def set_konaklama_sheet():
+    """Panelden yapıştırılan Google E-Tablolar linkini (ya da yalnız kimliği) kaydeder."""
+    import re
+    text = ((request.json or {}).get("url") or "").strip()
+    m = re.search(r"/spreadsheets/d/([A-Za-z0-9_-]{20,})", text) or re.fullmatch(r"([A-Za-z0-9_-]{20,})", text)
+    if not m:
+        return jsonify({"error": "Geçerli bir Google E-Tablolar linki yapıştırın"}), 400
+    with _konaklama_lock:
+        set_setting("konaklama_sheet_id", m.group(1))
+        # Önceki tablonun önbelleği bu tabloya ait değil
+        _konaklama_cache.update({"data": None, "at": 0.0, "tabs": None, "tabs_at": 0.0, "fail_at": 0, "fail": None})
+        try:
+            os.remove(KONAKLAMA_DISK_CACHE)
+        except OSError:
+            pass
+    return jsonify({"ok": True})
+
+
 # ── KASA DEVRİ (gün sonunda ertesi gün için kasada bırakılan bozuk para) ─────
 
 CASH_FLOAT_SCHEMA = """
