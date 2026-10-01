@@ -20,6 +20,8 @@ const GARDEN_LAYOUT = [
   { section: "Sağ",  tables: ["sağ 1","sağ 2","sağ 3","sağ 4","sağ 5","sağ 6","sağ 7"] },
   { section: "Orta", tables: ["orta 1","orta 2","orta 3","orta 4","orta 5","orta 6"] },
   { section: "Sol",  tables: ["sol 1","sol 2","sol 3","sol 4","sol 5","sol 6"] },
+  { section: "Salon", tables: ["salon 1","salon 2","salon 3","salon 4","salon 5","salon 6","salon 7","salon 8"] },
+  { section: "Loca",  tables: ["geyikli loca"] },
 ];
 
 const TAB_NAMES = {
@@ -33,6 +35,8 @@ const TAB_NAMES = {
   waiters:     "Garsonlar",
   printers:    "Fiş Yazıcıları",
   owners:      "Z Raporu Hesapları",
+  lodging:     "Konaklama Ödemeleri",
+  cashfloat:   "Kasa Devri",
 };
 
 /* ── INIT ────────────────────────────────────────────────────────────────── */
@@ -84,6 +88,8 @@ function switchTab(tab) {
   if (tab === "waiters")     loadWaiters();
   if (tab === "printers")    loadPrinterSettings();
   if (tab === "owners")      loadOwners();
+  if (tab === "lodging")     loadLodgingPayments();
+  if (tab === "cashfloat")   loadCashFloats();
   if (tab === "ingredients") loadIngredients();
   if (tab === "expenses")    loadExpenses();
 }
@@ -103,6 +109,23 @@ function setFilter(filter) {
     b.classList.toggle("active", b.dataset.filter === filter);
   });
   renderOrders();
+}
+
+// Ödenen siparişler gün gün listelenir; null = bugünü takip et (gece yarısı kendiliğinden ilerler)
+let ordersDate = null;
+
+function currentOrdersDate() { return ordersDate || todayLocal(); }
+
+function setOrdersDate(date) {
+  if (!date) return;
+  ordersDate = date === todayLocal() ? null : date;
+  loadOrders();
+}
+
+function shiftOrdersDate(days) {
+  const d = new Date(currentOrdersDate() + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  setOrdersDate(d.toLocaleDateString("sv"));
 }
 
 /* ── API HELPERS ─────────────────────────────────────────────────────────── */
@@ -376,7 +399,7 @@ async function deleteExpense(id) {
 
 /* ── ORDERS ──────────────────────────────────────────────────────────────── */
 async function loadOrders() {
-  orders = await api("/api/orders");
+  orders = await api(`/api/orders?date=${currentOrdersDate()}`);
   renderOrders();
   renderGardenMap();
   renderLowStockBanner();
@@ -495,6 +518,22 @@ function renderOrders() {
     ? orders
     : orders.filter(o => o.status === activeFilter);
 
+  // Tarih seçici yalnızca ödenenler/tümü görünümünde; seçilen günün tahsilat özeti
+  const showDate = activeFilter !== "Aktif";
+  document.getElementById("orders-date-bar").classList.toggle("hidden", !showDate);
+  if (showDate) {
+    const dateInput = document.getElementById("orders-date");
+    if (document.activeElement !== dateInput) dateInput.value = currentOrdersDate();
+    const paid  = orders.filter(o => o.status === "Ödendi");
+    const sum   = list => list.reduce((s, o) => s + (o.total || 0), 0);
+    const nakit = sum(paid.filter(o => o.payment_method === "Nakit"));
+    const kart  = sum(paid.filter(o => o.payment_method === "Kredi Kartı"));
+    const fmt   = n => "₺" + n.toLocaleString("tr-TR");
+    document.getElementById("orders-day-summary").textContent =
+      `${paid.length} ödenen sipariş · Toplam ${fmt(sum(paid))} · Nakit ${fmt(nakit)} · Kart ${fmt(kart)}` +
+      (sum(paid) - nakit - kart > 0 ? ` · Diğer ${fmt(sum(paid) - nakit - kart)}` : "");
+  }
+
   if (!filtered.length) {
     list.innerHTML = `<div class="empty-state">Gösterilecek sipariş yok</div>`;
     return;
@@ -522,7 +561,8 @@ function renderOrders() {
           <div class="order-actions">
             ${!isPaid
               ? `<button class="btn odendi-btn" onclick="openPaymentModal(${order.id})">✓ Ödendi</button>`
-              : `<span class="paid-label">${paymentLabel(order.payment_method)}</span>`
+              : `<span class="paid-label">${paymentLabel(order.payment_method)}</span>
+                 <button class="btn sm" onclick="openEditPaymentModal(${order.id})">Ödemeyi Düzenle</button>`
             }
           </div>
           <div class="order-actions-secondary">
@@ -531,6 +571,10 @@ function renderOrders() {
               Adisyon
             </button>
             ${!isPaid ? `
+            <button class="btn sec-btn" onclick="openEditOrderModal(${order.id})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              Düzenle
+            </button>
             <button class="btn sec-btn" onclick="openTableChangeModal(${order.id},'${esc(order.table_number)}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7H3"/><path d="m15 1 6 6-6 6"/><path d="M3 17h18"/><path d="m9 11-6 6 6 6"/></svg>
               Masa
@@ -581,7 +625,175 @@ function openPaymentModal(orderId) {
   document.getElementById("split-card").value = "";
   document.getElementById("discount-input").value = "";
   document.getElementById("payment-final-total").textContent = `₺${pendingPaymentTotal.toLocaleString("tr-TR")}`;
+  // Bu masada yarım kalmış bir bölme varsa kaldığı yerden devam et
+  split = loadSplit(orderId);
+  splitSelected = new Set();
+  setSplitMode(split.payments.length > 0);
   showModal("payment-modal");
+}
+
+/* ── HESAP / HESABI BÖLME ─────────────────────────────────────────────────── */
+// Kişiler ürün ürün söyleyip ayrı ayrı öder: seçilen ürünler tahsil edilir, kilitlenir;
+// hepsi ödenince masa kapanır ve nakit/kart toplamları "karma" ödeme olarak yazılır.
+let splitMode     = false;
+let split         = { payments: [], paid: {} };   // paid: { birimAnahtarı: kişiNo }
+let splitSelected = new Set();
+
+const tlFmt = n => "₺" + (Math.round(n * 100) / 100).toLocaleString("tr-TR");
+
+function loadSplit(orderId) {
+  // Kayıt, siparişin açılış zamanıyla eşleşmiyorsa eski/başka bir siparişe aittir — yok say
+  const order = orders.find(o => o.id === orderId);
+  try {
+    const saved = JSON.parse(localStorage.getItem(`split-${orderId}`) || "null");
+    if (saved && Array.isArray(saved.payments) && order && saved.createdAt === order.created_at) return saved;
+  } catch (e) {}
+  return { payments: [], paid: {}, createdAt: order ? order.created_at : null };
+}
+
+function saveSplit() {
+  try {
+    if (split.payments.length) localStorage.setItem(`split-${pendingPaymentOrderId}`, JSON.stringify(split));
+    else localStorage.removeItem(`split-${pendingPaymentOrderId}`);
+  } catch (e) {}
+}
+
+// 3× Cola → 3 ayrı satır; her biri ayrı kişiye ait olabilsin
+function splitUnits(order) {
+  const units = [];
+  order.items.forEach(i => {
+    for (let n = 0; n < i.quantity; n++) {
+      units.push({ key: `${i.id}-${n}`, name: i.item_name, price: i.item_price });
+    }
+  });
+  return units;
+}
+
+function setSplitMode(on) {
+  splitMode = on;
+  splitSelected = new Set();
+  // Bölerken indirim ve normal ödeme seçenekleri gizlenir
+  document.querySelector("#payment-modal .discount-row").classList.toggle("hidden", on);
+  document.getElementById("payment-options").classList.toggle("hidden", on);
+  document.getElementById("split-payment-form").classList.add("hidden");
+  document.getElementById("split-pay-actions").classList.toggle("hidden", !on);
+  document.getElementById("payment-subtitle").textContent = on
+    ? "Kişinin yediklerini seç, sonra ödemesini al"
+    : "Ödeme nasıl yapıldı?";
+  renderPaymentBill();
+}
+
+function toggleSplitUnit(key) {
+  if (split.paid[key]) return;
+  splitSelected.has(key) ? splitSelected.delete(key) : splitSelected.add(key);
+  renderPaymentBill();
+}
+
+function renderPaymentBill() {
+  const order = orders.find(o => o.id === pendingPaymentOrderId);
+  const el = document.getElementById("payment-bill");
+  if (!order) { el.innerHTML = ""; return; }
+  const time = new Date(order.created_at + "Z").toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  const meta = `
+    <div class="bill-meta">
+      <span class="bill-table">${esc(order.table_number)}</span>
+      <span class="bill-meta-right">
+        <span>${order.waiter ? esc(order.waiter) + " · " : ""}${time}</span>
+        ${splitMode
+          ? (split.payments.length ? "" : `<button class="btn sm" onclick="setSplitMode(false)">Bölmeden Öde</button>`)
+          : `<button class="btn sm" onclick="setSplitMode(true)">Hesabı Böl</button>`}
+      </span>
+    </div>`;
+
+  if (!splitMode) {
+    el.innerHTML = meta + `
+      <div class="bill-items">
+        ${order.items.map(i => `
+          <div class="bill-row">
+            <span class="bill-qty">${i.quantity}×</span>
+            <span class="bill-name">${esc(i.item_name)}${i.quantity > 1 ? `<small>${tlFmt(i.item_price)}</small>` : ""}</span>
+            <span class="bill-amt">${tlFmt(i.item_price * i.quantity)}</span>
+          </div>`).join("")}
+      </div>
+      <div class="bill-total"><span>Toplam</span><strong>${tlFmt(order.total)}</strong></div>`;
+    return;
+  }
+
+  const units = splitUnits(order);
+  const payment = no => split.payments.find(p => p.no === no);
+  const selectedTotal = units.filter(u => splitSelected.has(u.key)).reduce((s, u) => s + u.price, 0);
+  const remaining = units.filter(u => !split.paid[u.key]).reduce((s, u) => s + u.price, 0);
+  const nextNo = split.payments.length + 1;
+
+  el.innerHTML = meta + `
+    <div class="bill-items split">
+      ${units.map(u => {
+        const payer = split.paid[u.key];
+        const sel = splitSelected.has(u.key);
+        return `
+          <div class="bill-row split-row ${payer ? "is-paid" : ""} ${sel ? "is-selected" : ""}"
+               ${payer ? "" : `onclick="toggleSplitUnit('${u.key}')"`}>
+            <span class="tick">${sel || payer ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>` : ""}</span>
+            <span class="bill-name">${esc(u.name)}${payer ? `<small>${payer}. kişi · ${esc(payment(payer)?.method || "")}</small>` : ""}</span>
+            <span class="bill-amt">${tlFmt(u.price)}</span>
+          </div>`;
+      }).join("")}
+    </div>
+    <div class="split-summary">
+      <div class="split-selected">
+        <span>${nextNo}. kişi · seçilen ${splitSelected.size} ürün</span>
+        <strong>${tlFmt(selectedTotal)}</strong>
+      </div>
+      <div class="split-remaining">
+        <span>Kalan</span><span>${tlFmt(remaining)}</span>
+      </div>
+      ${split.payments.length ? `
+        <div class="split-payments">
+          ${split.payments.map(p => `<span>${p.no}. kişi: ${tlFmt(p.amount)} ${esc(p.method)}</span>`).join("")}
+          <button class="link-btn" onclick="undoLastSplitPayment()">Son ödemeyi geri al</button>
+        </div>` : ""}
+    </div>`;
+
+  const none = splitSelected.size === 0;
+  document.getElementById("split-pay-cash").disabled = none;
+  document.getElementById("split-pay-card").disabled = none;
+}
+
+async function paySelected(method) {
+  const order = orders.find(o => o.id === pendingPaymentOrderId);
+  if (!order || !splitSelected.size) return;
+  const units = splitUnits(order);
+  const no = split.payments.length + 1;
+  const amount = units.filter(u => splitSelected.has(u.key)).reduce((s, u) => s + u.price, 0);
+  split.payments.push({ no, amount, method });
+  splitSelected.forEach(k => { split.paid[k] = no; });
+  splitSelected = new Set();
+  saveSplit();
+
+  // Herkes ödediyse masayı kapat
+  if (units.every(u => split.paid[u.key])) {
+    const cash = split.payments.filter(p => p.method === "Nakit").reduce((s, p) => s + p.amount, 0);
+    const card = split.payments.filter(p => p.method !== "Nakit").reduce((s, p) => s + p.amount, 0);
+    const finalMethod = !card ? "Nakit" : !cash ? "Kredi Kartı"
+      : `Nakit: ₺${cash.toLocaleString("tr-TR")} / Kart: ₺${card.toLocaleString("tr-TR")}`;
+    await api(`/api/orders/${pendingPaymentOrderId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status: "Ödendi", payment_method: finalMethod, discount: 0 }),
+    });
+    try { localStorage.removeItem(`split-${pendingPaymentOrderId}`); } catch (e) {}
+    closePaymentModal();
+    loadOrders();
+    return;
+  }
+  renderPaymentBill();
+}
+
+function undoLastSplitPayment() {
+  const last = split.payments.pop();
+  if (!last) return;
+  Object.keys(split.paid).forEach(k => { if (split.paid[k] === last.no) delete split.paid[k]; });
+  saveSplit();
+  renderPaymentBill();
 }
 
 function updatePaymentTotal() {
@@ -636,6 +848,159 @@ async function confirmSplitPayment() {
   pendingPaymentTotal   = 0;
   closePaymentModal();
   loadOrders();
+}
+
+/* ── AÇIK ADİSYONU DÜZENLEME (ürün ekle / çıkar) ─────────────────────────── */
+// Değişiklikler pencerede toplanır, "Kaydet"te tek seferde işlenir (fişler bir kez basılsın)
+let editOrderId    = null;
+let editExisting   = [];   // { id, name, price, qty, newQty }
+let editAdditions  = {};   // menu_item_id → { menu_item_id, name, price, quantity }
+
+function openEditOrderModal(orderId) {
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  editOrderId = orderId;
+  editExisting = order.items.map(i => ({ id: i.id, name: i.item_name, price: i.item_price, qty: i.quantity, newQty: i.quantity }));
+  editAdditions = {};
+  document.getElementById("edit-order-title").textContent = `Adisyonu Düzenle · ${order.table_number}`;
+  document.getElementById("edit-order-search").value = "";
+  document.getElementById("edit-order-msg").textContent = "";
+  renderEditOrder();
+  renderEditOrderPick();
+  showModal("edit-order-modal");
+}
+
+function editQty(id, delta) {
+  const it = editExisting.find(i => i.id === id);
+  if (it) it.newQty = Math.max(0, it.newQty + delta);
+  renderEditOrder();
+}
+
+function editAddQty(menuId, delta) {
+  const a = editAdditions[menuId];
+  if (!a) return;
+  a.quantity += delta;
+  if (a.quantity <= 0) delete editAdditions[menuId];
+  renderEditOrder();
+}
+
+function editPick(menuId) {
+  const m = menuItems.find(x => x.id === menuId);
+  if (!m) return;
+  if (!editAdditions[menuId]) editAdditions[menuId] = { menu_item_id: m.id, name: m.name, price: m.price, quantity: 0 };
+  editAdditions[menuId].quantity += 1;
+  renderEditOrder();
+}
+
+function renderEditOrder() {
+  const stepper = (onMinus, onPlus, qty) => `
+    <span class="edit-stepper">
+      <button onclick="${onMinus}" aria-label="Azalt">−</button>
+      <span class="num">${qty}</span>
+      <button onclick="${onPlus}" aria-label="Arttır">+</button>
+    </span>`;
+  const rows = editExisting.map(i => `
+    <div class="edit-row ${i.newQty === 0 ? "is-removed" : ""} ${i.newQty !== i.qty ? "is-changed" : ""}">
+      <span class="edit-name">${esc(i.name)}${i.newQty === 0 ? "<small>çıkarılacak</small>" : i.newQty !== i.qty ? `<small>${i.qty} → ${i.newQty}</small>` : ""}</span>
+      ${stepper(`editQty(${i.id},-1)`, `editQty(${i.id},1)`, i.newQty)}
+      <span class="edit-amt">₺${(i.price * i.newQty).toLocaleString("tr-TR")}</span>
+    </div>`).concat(Object.values(editAdditions).map(a => `
+    <div class="edit-row is-new">
+      <span class="edit-name">${esc(a.name)}<small>yeni eklenecek</small></span>
+      ${stepper(`editAddQty(${a.menu_item_id},-1)`, `editAddQty(${a.menu_item_id},1)`, a.quantity)}
+      <span class="edit-amt">₺${(a.price * a.quantity).toLocaleString("tr-TR")}</span>
+    </div>`));
+  document.getElementById("edit-order-items").innerHTML = rows.join("") || `<div class="empty-state" style="padding:20px">Adisyonda ürün yok</div>`;
+  const total = editExisting.reduce((s, i) => s + i.price * i.newQty, 0)
+              + Object.values(editAdditions).reduce((s, a) => s + a.price * a.quantity, 0);
+  document.getElementById("edit-order-total").textContent = `₺${total.toLocaleString("tr-TR")}`;
+}
+
+function renderEditOrderPick() {
+  const q = document.getElementById("edit-order-search").value.trim().toLocaleLowerCase("tr-TR");
+  const list = menuItems.filter(m => !q || m.name.toLocaleLowerCase("tr-TR").includes(q) || (m.category || "").toLocaleLowerCase("tr-TR").includes(q));
+  document.getElementById("edit-order-pick").innerHTML = list.map(m => `
+    <div class="pick-item" onclick="editPick(${m.id})">
+      <span>${esc(m.name)}</span>
+      <span class="pick-item-price">₺${m.price.toLocaleString("tr-TR")} <b class="pick-plus">+</b></span>
+    </div>`).join("") || `<div class="pick-item" style="cursor:default;color:var(--ink-3)">Ürün bulunamadı</div>`;
+}
+
+async function saveEditOrder() {
+  const msg = document.getElementById("edit-order-msg");
+  const changed = editExisting.filter(i => i.newQty !== i.qty);
+  const additions = Object.values(editAdditions).filter(a => a.quantity > 0);
+  if (!changed.length && !additions.length) { closeEditOrderModal(); return; }
+  if (editExisting.every(i => i.newQty === 0) && !additions.length) {
+    msg.textContent = "Adisyonda en az bir ürün kalmalı. Tamamen iptal için siparişi silin.";
+    return;
+  }
+  for (const i of changed) {
+    const res = await api(`/api/orders/${editOrderId}/items/${i.id}`, { method: "PUT", body: JSON.stringify({ quantity: i.newQty }) });
+    if (res.error) { msg.textContent = res.error; return; }
+  }
+  if (additions.length) {
+    const res = await api(`/api/orders/${editOrderId}/items`, { method: "POST", body: JSON.stringify({ items: additions, notes: "" }) });
+    if (res.error) { msg.textContent = res.error; return; }
+  }
+  closeEditOrderModal();
+  loadOrders();
+}
+
+function closeEditOrderModal() {
+  editOrderId = null;
+  hideModal("edit-order-modal");
+}
+
+/* ── ÖDENMİŞ SİPARİŞİN ÖDEME YÖNTEMİNİ DÜZELTME ─────────────────────────── */
+let editPaymentOrderId = null;
+
+function openEditPaymentModal(orderId) {
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  editPaymentOrderId = orderId;
+  document.getElementById("edit-pay-info").innerHTML =
+    `<b>${esc(order.table_number)}</b> · ₺${order.total.toLocaleString("tr-TR")} · şu an: <b>${esc(order.payment_method || "—")}</b>`;
+  document.getElementById("edit-pay-karma").classList.add("hidden");
+  document.getElementById("edit-pay-options").classList.remove("hidden");
+  document.getElementById("edit-pay-cash").value = "";
+  document.getElementById("edit-pay-card").value = "";
+  document.getElementById("edit-pay-msg").textContent = "";
+  showModal("edit-payment-modal");
+}
+
+function showEditKarma() {
+  document.getElementById("edit-pay-options").classList.add("hidden");
+  document.getElementById("edit-pay-karma").classList.remove("hidden");
+}
+
+function editKarmaFill(changed) {
+  const order = orders.find(o => o.id === editPaymentOrderId);
+  if (!order) return;
+  const cash = document.getElementById("edit-pay-cash");
+  const card = document.getElementById("edit-pay-card");
+  if (changed === "cash") card.value = Math.max(0, order.total - (parseFloat(cash.value) || 0));
+  else cash.value = Math.max(0, order.total - (parseFloat(card.value) || 0));
+}
+
+async function saveEditPayment(method) {
+  if (method === "Karma") {
+    const cash = parseFloat(document.getElementById("edit-pay-cash").value) || 0;
+    const card = parseFloat(document.getElementById("edit-pay-card").value) || 0;
+    method = `Nakit: ₺${cash.toLocaleString("tr-TR")} / Kart: ₺${card.toLocaleString("tr-TR")}`;
+  }
+  const res = await api(`/api/orders/${editPaymentOrderId}/payment`, {
+    method: "PUT",
+    body: JSON.stringify({ payment_method: method }),
+  });
+  if (res.error) { document.getElementById("edit-pay-msg").textContent = res.error; return; }
+  closeEditPaymentModal();
+  loadOrders();
+}
+
+function closeEditPaymentModal() {
+  editPaymentOrderId = null;
+  hideModal("edit-payment-modal");
 }
 
 function closePaymentModal() {
@@ -994,6 +1359,7 @@ function renderBungalovAccount(data) {
 
     ${!isClosed ? `
     <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn full-width" onclick="openBungalovMenuModal(${data.id})">+ Menüden Ekle</button>
       <button class="btn full-width" onclick="openBungalovChargeModal(${data.id})">+ Masraf Ekle</button>
       <button class="btn odendi-btn full-width" onclick="openBungalovCheckoutModal(${data.id}, ${data.total || 0})">Çıkış & Ödeme</button>
     </div>` : `
@@ -1033,12 +1399,87 @@ async function deleteCharge(chargeId) {
   loadBungalov();
 }
 
+/* ── BUNGALOV HESABINA MENÜDEN ÜRÜN ─────────────────────────────────────── */
+let bungalovCart = {};   // menu_item_id → { menu_item_id, name, price, quantity }
+
+function openBungalovMenuModal(accountId) {
+  activeBungalovAccId = accountId;
+  bungalovCart = {};
+  document.getElementById("bmenu-search").value = "";
+  document.getElementById("bmenu-msg").textContent = "";
+  renderBungalovCart();
+  renderBungalovMenuPick();
+  showModal("bungalov-menu-modal");
+}
+
+function closeBungalovMenuModal() { hideModal("bungalov-menu-modal"); }
+
+function bungalovPick(menuId) {
+  const m = menuItems.find(x => x.id === menuId);
+  if (!m) return;
+  if (!bungalovCart[menuId]) bungalovCart[menuId] = { menu_item_id: m.id, name: m.name, price: m.price, quantity: 0 };
+  bungalovCart[menuId].quantity += 1;
+  renderBungalovCart();
+}
+
+function bungalovCartQty(menuId, delta) {
+  const c = bungalovCart[menuId];
+  if (!c) return;
+  c.quantity += delta;
+  if (c.quantity <= 0) delete bungalovCart[menuId];
+  renderBungalovCart();
+}
+
+function renderBungalovCart() {
+  const lines = Object.values(bungalovCart);
+  document.getElementById("bmenu-cart").innerHTML = lines.length ? lines.map(c => `
+    <div class="edit-row is-new">
+      <span class="edit-name">${esc(c.name)}</span>
+      <span class="edit-stepper">
+        <button onclick="bungalovCartQty(${c.menu_item_id},-1)" aria-label="Azalt">−</button>
+        <span class="num">${c.quantity}</span>
+        <button onclick="bungalovCartQty(${c.menu_item_id},1)" aria-label="Arttır">+</button>
+      </span>
+      <span class="edit-amt">₺${(c.price * c.quantity).toLocaleString("tr-TR")}</span>
+    </div>`).join("") : `<div class="bmenu-empty">Aşağıdan ürün seçin</div>`;
+  const total = lines.reduce((s, c) => s + c.price * c.quantity, 0);
+  document.getElementById("bmenu-total").textContent = `₺${total.toLocaleString("tr-TR")}`;
+}
+
+function renderBungalovMenuPick() {
+  const q = document.getElementById("bmenu-search").value.trim().toLocaleLowerCase("tr-TR");
+  const list = menuItems.filter(m => !q || m.name.toLocaleLowerCase("tr-TR").includes(q) || (m.category || "").toLocaleLowerCase("tr-TR").includes(q));
+  document.getElementById("bmenu-pick").innerHTML = list.map(m => `
+    <div class="pick-item" onclick="bungalovPick(${m.id})">
+      <span>${esc(m.name)}</span>
+      <span class="pick-item-price">₺${m.price.toLocaleString("tr-TR")} <b class="pick-plus">+</b></span>
+    </div>`).join("") || `<div class="pick-item" style="cursor:default;color:var(--ink-3)">Ürün bulunamadı</div>`;
+}
+
+async function confirmBungalovMenuItems() {
+  const items = Object.values(bungalovCart).map(c => ({ menu_item_id: c.menu_item_id, quantity: c.quantity }));
+  const msg = document.getElementById("bmenu-msg");
+  if (!items.length) { msg.textContent = "En az bir ürün seçin"; return; }
+  const res = await api(`/api/bungalov/account/${activeBungalovAccId}/menu-items`, { method: "POST", body: JSON.stringify({ items }) });
+  if (res.error) { msg.textContent = res.error; return; }
+  closeBungalovMenuModal();
+  openBungalovModal(activeBungalovAccId);
+  loadBungalov();
+}
+
 function openBungalovCheckoutModal(accountId, total) {
   pendingCheckoutAccId = accountId;
   document.getElementById("bungalov-checkout-total").textContent = `Toplam tutar: ₺${total.toLocaleString("tr-TR")}`;
   document.getElementById("bungalov-checkout-date").value        = todayLocal();
   document.getElementById("bungalov-checkout-payment").value     = "Nakit";
+  document.getElementById("bungalov-checkout-nakit").value       = "";
+  toggleCheckoutKarma();
   showModal("bungalov-checkout-modal");
+}
+
+function toggleCheckoutKarma() {
+  const karma = document.getElementById("bungalov-checkout-payment").value === "Karma";
+  document.getElementById("bungalov-checkout-karma-row").classList.toggle("hidden", !karma);
 }
 
 function closeBungalovCheckoutModal() { hideModal("bungalov-checkout-modal"); }
@@ -1046,11 +1487,14 @@ function closeBungalovCheckoutModal() { hideModal("bungalov-checkout-modal"); }
 async function confirmCheckout() {
   const payment_method = document.getElementById("bungalov-checkout-payment").value;
   const checkout_date  = document.getElementById("bungalov-checkout-date").value;
+  const nakit_amount   = document.getElementById("bungalov-checkout-nakit").value;
   if (!checkout_date) return alert("Çıkış tarihi giriniz.");
-  await api(`/api/bungalov/account/${pendingCheckoutAccId}/checkout`, {
+  if (payment_method === "Karma" && nakit_amount === "") return alert("Nakit tutarını giriniz.");
+  const res = await api(`/api/bungalov/account/${pendingCheckoutAccId}/checkout`, {
     method: "PUT",
-    body: JSON.stringify({ payment_method, checkout_date }),
+    body: JSON.stringify({ payment_method, checkout_date, nakit_amount }),
   });
+  if (res && res.error) return alert(res.error);
   closeBungalovCheckoutModal();
   closeBungalovModal();
   loadBungalov();
@@ -1285,4 +1729,141 @@ async function deleteOwner(id, btn) {
   await api(`/api/owners/${id}`, { method: "DELETE" });
   ownerMsg("Hesap silindi", true);
   loadOwners();
+}
+
+/* ── KONAKLAMA ÖDEMELERİ ─────────────────────────────────────────────────── */
+async function loadLodgingPayments() {
+  const dateInput = document.getElementById("lodging-date");
+  if (!dateInput.value) dateInput.value = todayLocal();
+  const data = await api(`/api/lodging-payments?date=${dateInput.value}`);
+
+  const unitSel = document.getElementById("lodging-unit");
+  if (!unitSel.options.length) {
+    unitSel.innerHTML = `<option value="">Seç</option>` + data.units.map(u => `<option>${esc(u)}</option>`).join("");
+  }
+
+  const pays = data.payments;
+  const sumOf = m => pays.filter(p => p.payment_method === m).reduce((s, p) => s + p.amount, 0);
+  const nakit = sumOf("Nakit"), kart = sumOf("Kredi Kartı"), havale = sumOf("Havale");
+  document.getElementById("lodging-totals").textContent = pays.length
+    ? `Nakit ₺${nakit.toLocaleString("tr-TR")} · Kart ₺${kart.toLocaleString("tr-TR")} · Havale ₺${havale.toLocaleString("tr-TR")} · Toplam ₺${(nakit + kart + havale).toLocaleString("tr-TR")}`
+    : "";
+
+  const tbody = document.getElementById("lodging-tbody");
+  if (!pays.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:32px">Bu gün tahsilat yok</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = pays.map(p => `
+    <tr>
+      <td>${new Date(p.created_at + "Z").toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</td>
+      <td><strong>${esc(p.unit)}</strong></td>
+      <td>${esc(p.guest_name || "—")}</td>
+      <td style="color:var(--ink-2)">${esc(p.notes || "")}</td>
+      <td>${lodgingChip(p.payment_method)}</td>
+      <td><strong>₺${p.amount.toLocaleString("tr-TR")}</strong></td>
+      <td style="text-align:right"><button class="btn sm danger" onclick="deleteLodgingPayment(${p.id}, this)">Sil</button></td>
+    </tr>`).join("");
+}
+
+function lodgingChip(method) {
+  const cls = { "Nakit": "nakit", "Kredi Kartı": "kart", "Havale": "havale" }[method] || "kart";
+  const label = { "Nakit": "Nakit", "Kredi Kartı": "Kart", "Havale": "Havale" }[method] || method;
+  return `<span class="pay-chip ${cls}">${label}</span>`;
+}
+
+async function addLodgingPayment(method) {
+  const msg = document.getElementById("lodging-msg");
+  const body = {
+    unit:           document.getElementById("lodging-unit").value,
+    guest_name:     document.getElementById("lodging-guest").value.trim(),
+    amount:         parseFloat(document.getElementById("lodging-amount").value) || 0,
+    notes:          document.getElementById("lodging-notes").value.trim(),
+    payment_method: method,
+  };
+  const res = await api("/api/lodging-payments", { method: "POST", body: JSON.stringify(body) });
+  if (res.error) { msg.className = "printer-status-msg err"; msg.textContent = res.error; return; }
+  msg.className = "printer-status-msg ok";
+  const how = { "Nakit": "nakit", "Kredi Kartı": "kartla", "Havale": "havale ile" }[method];
+  msg.textContent = `${body.unit}: ₺${body.amount.toLocaleString("tr-TR")} ${how} alındı olarak kaydedildi ✓`;
+  ["lodging-guest", "lodging-amount", "lodging-notes"].forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("lodging-unit").value = "";
+  document.getElementById("lodging-date").value = todayLocal();
+  loadLodgingPayments();
+}
+
+async function deleteLodgingPayment(id, btn) {
+  // Tarayıcı onay penceresi yerine iki adımlı buton
+  if (btn.dataset.confirm !== "1") {
+    btn.dataset.confirm = "1";
+    btn.textContent = "Emin misin?";
+    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Sil"; }, 3000);
+    return;
+  }
+  await api(`/api/lodging-payments/${id}`, { method: "DELETE" });
+  loadLodgingPayments();
+}
+
+/* ── KASA DEVRİ ──────────────────────────────────────────────────────────── */
+let cashFloats = [];
+
+async function loadCashFloats() {
+  const dateInput = document.getElementById("float-date");
+  if (!dateInput.value) dateInput.value = todayLocal();
+  cashFloats = await api("/api/cash-floats");
+  fillCashFloatForm();
+  const tbody = document.getElementById("float-tbody");
+  if (!cashFloats.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:32px">Henüz kayıt yok</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cashFloats.map(f => `
+    <tr>
+      <td>${new Date(f.float_date + "T00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}</td>
+      <td><strong>₺${f.amount.toLocaleString("tr-TR")}</strong></td>
+      <td style="color:var(--ink-2)">${esc(f.notes || "")}</td>
+      <td style="text-align:right">
+        <button class="btn sm" onclick="editCashFloat('${f.float_date}')">Düzenle</button>
+        <button class="btn sm danger" onclick="deleteCashFloat('${f.float_date}', this)">Sil</button>
+      </td>
+    </tr>`).join("");
+}
+
+// Seçili tarihte kayıt varsa formu onunla doldur (üzerine yazılır)
+function fillCashFloatForm() {
+  const date = document.getElementById("float-date").value;
+  const f = cashFloats.find(x => x.float_date === date);
+  document.getElementById("float-amount").value = f ? f.amount : "";
+  document.getElementById("float-notes").value = f ? (f.notes || "") : "";
+}
+
+function editCashFloat(date) {
+  document.getElementById("float-date").value = date;
+  fillCashFloatForm();
+  document.getElementById("float-amount").focus();
+}
+
+async function saveCashFloat() {
+  const msg = document.getElementById("float-msg");
+  const body = {
+    date:   document.getElementById("float-date").value,
+    amount: document.getElementById("float-amount").value,
+    notes:  document.getElementById("float-notes").value.trim(),
+  };
+  const res = await api("/api/cash-floats", { method: "PUT", body: JSON.stringify(body) });
+  if (res.error) { msg.className = "printer-status-msg err"; msg.textContent = res.error; return; }
+  msg.className = "printer-status-msg ok";
+  msg.textContent = `Kasada bırakılan ₺${parseFloat(body.amount).toLocaleString("tr-TR")} kaydedildi ✓`;
+  loadCashFloats();
+}
+
+async function deleteCashFloat(date, btn) {
+  if (btn.dataset.confirm !== "1") {
+    btn.dataset.confirm = "1";
+    btn.textContent = "Emin misin?";
+    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Sil"; }, 3000);
+    return;
+  }
+  await api(`/api/cash-floats/${date}`, { method: "DELETE" });
+  loadCashFloats();
 }

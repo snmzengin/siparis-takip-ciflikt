@@ -3,196 +3,197 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#F8F3E6" />
   <title>Adisyon — Çiftlik Restoran</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Renkler web sitesinin paletinden; görünüm panelle aynı (buzlu cam + bulanık fotoğraf) */
+    :root {
+      --cream:      #F8F3E6;
+      --olive:      #1E3B26;
+      --gold-dark:  #B9852E;
+      --ink:        #211C12;
+      --ink-2:      #4A4132;
+      --ink-3:      #6B6250;
+      --line:       rgba(33, 28, 18, 0.09);
+      --line-2:     rgba(33, 28, 18, 0.14);
+      --accent:     #2F6B3F;
+      --accent-hov: #265834;
+      --glass-strong: rgba(252, 250, 241, 0.86);
+      --glass-edge:   rgba(255, 255, 255, 0.65);
+      --blur:         saturate(170%) blur(22px);
+    }
+
+    html { background: var(--cream); }
     body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #f0f5f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      background: transparent;
+      color: var(--ink);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px 48px;
+      padding: 28px 16px 48px;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1;
+      background:
+        linear-gradient(rgba(248, 243, 230, 0.68), rgba(248, 243, 230, 0.68)),
+        url("/static/bg-blur.jpg") center 62% / cover no-repeat;
+      pointer-events: none;
     }
 
     .receipt {
-      background: #fff;
       width: 100%;
       max-width: 420px;
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(13,59,55,0.10);
+      border-radius: 22px;
       overflow: hidden;
+      background: var(--glass-strong);
+      -webkit-backdrop-filter: var(--blur);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.7) inset, 0 20px 50px rgba(33, 28, 18, 0.12);
     }
 
-    /* ── HEADER ── */
-    .receipt-header {
-      background: linear-gradient(145deg, #0d3b37, #0d8a80);
-      color: #fff;
-      padding: 28px 28px 22px;
-      text-align: center;
+    /* ── BAŞLIK ── */
+    .receipt-header { padding: 28px 26px 20px; text-align: center; }
+    .mark {
+      width: 46px; height: 46px; margin: 0 auto 12px;
+      border-radius: 13px; background: var(--olive); color: var(--cream);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; letter-spacing: 0.5px;
+      box-shadow: 0 6px 16px rgba(30, 59, 38, 0.25);
     }
-    .receipt-logo { font-size: 2rem; margin-bottom: 4px; }
-    .receipt-restaurant { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.5px; }
-    .receipt-sub { font-size: 0.75rem; color: rgba(255,255,255,0.65); margin-top: 2px; letter-spacing: 2px; text-transform: uppercase; }
+    .receipt-restaurant { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
+    .receipt-sub { font-size: 0.72rem; color: var(--ink-2); margin-top: 3px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; }
 
-    /* ── META ── */
+    /* ── MASA / GARSON / SAAT ── */
     .receipt-meta {
-      display: flex;
-      justify-content: space-between;
-      padding: 16px 24px;
-      background: #f8fdfc;
-      border-bottom: 1px dashed #d0f4f2;
-      font-size: 0.85rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.3fr;
+      gap: 8px;
+      margin: 0 20px;
+      padding: 14px 16px;
+      background: rgba(33, 28, 18, 0.05);
+      border-radius: 14px;
     }
-    .meta-block { display: flex; flex-direction: column; gap: 3px; }
-    .meta-label { font-size: 0.7rem; color: #6b8e8b; text-transform: uppercase; letter-spacing: 1px; }
-    .meta-value { font-weight: 700; color: #0d3b37; font-size: 0.95rem; }
+    .meta-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .meta-label { font-size: 0.68rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+    .meta-value { font-weight: 600; color: var(--ink); font-size: 0.92rem; text-transform: capitalize; }
 
-    /* ── ITEMS ── */
-    .receipt-items { padding: 20px 24px; }
-
+    /* ── ÜRÜNLER ── */
+    .receipt-items { padding: 18px 26px 6px; }
     .items-header {
       display: flex;
-      justify-content: space-between;
-      font-size: 0.72rem;
-      color: #6b8e8b;
+      font-size: 0.68rem;
+      color: var(--ink-3);
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.08em;
+      font-weight: 600;
       padding-bottom: 8px;
-      border-bottom: 1px solid #e8f5f4;
-      margin-bottom: 10px;
+      border-bottom: 1px solid var(--line-2);
+      gap: 8px;
     }
-
     .item-row {
       display: flex;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #f0f5f4;
+      align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
       gap: 8px;
     }
     .item-row:last-child { border-bottom: none; }
+    .item-qty   { font-size: 0.86rem; font-weight: 600; color: var(--ink-3); min-width: 28px; }
+    .item-name  { flex: 1; font-size: 0.94rem; color: var(--ink); }
+    .item-unit  { font-size: 0.8rem; color: var(--ink-3); min-width: 60px; text-align: right; }
+    .item-total { font-size: 0.94rem; font-weight: 600; color: var(--ink); min-width: 72px; text-align: right; }
 
-    .item-qty {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: #0d8a80;
-      min-width: 28px;
-    }
-    .item-name {
-      flex: 1;
-      font-size: 0.92rem;
-      color: #1a3a38;
-    }
-    .item-unit {
-      font-size: 0.78rem;
-      color: #6b8e8b;
-      min-width: 60px;
-      text-align: right;
-    }
-    .item-total {
-      font-size: 0.92rem;
-      font-weight: 700;
-      color: #1a3a38;
-      min-width: 72px;
-      text-align: right;
-    }
-
-    /* ── NOTES ── */
+    /* ── NOT ── */
     .receipt-notes {
-      margin: 0 24px 16px;
+      margin: 6px 20px 14px;
       padding: 10px 14px;
-      background: #fffbeb;
-      border-left: 3px solid #fbbf24;
-      border-radius: 0 8px 8px 0;
-      font-size: 0.85rem;
-      color: #92400e;
-    }
-
-    /* ── TOTAL ── */
-    .receipt-total {
-      margin: 0 24px 24px;
-      background: #f0fdf9;
-      border: 2px solid #d0f4f2;
+      background: rgba(217, 164, 65, 0.16);
       border-radius: 12px;
-      padding: 16px 20px;
+      font-size: 0.86rem;
+      color: #6E4B14;
     }
-    .total-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .total-label { font-size: 0.88rem; color: #6b8e8b; font-weight: 600; }
-    .total-amount { font-size: 2rem; font-weight: 900; color: #0d3b37; }
+    .receipt-notes b { font-weight: 600; margin-right: 4px; }
 
-    /* ── STATUS ── */
-    .receipt-status {
-      text-align: center;
-      padding: 0 24px 24px;
-      font-size: 0.85rem;
-      color: #6b8e8b;
+    /* ── TOPLAM ── */
+    .receipt-total {
+      margin: 8px 20px 18px;
+      padding: 16px 6px 0;
+      border-top: 1px solid var(--line-2);
     }
+    .total-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .total-label { font-size: 0.9rem; color: var(--ink-2); font-weight: 500; }
+    .total-amount { font-size: 2rem; font-weight: 700; color: var(--olive); letter-spacing: -0.03em; }
+    .payment-line { margin-top: 6px; font-size: 0.82rem; color: var(--ink-2); text-align: right; }
+
+    /* ── DURUM ── */
+    .receipt-status { text-align: center; padding: 0 24px 22px; }
     .status-badge {
-      display: inline-block;
-      padding: 5px 16px;
-      border-radius: 20px;
-      font-weight: 700;
-      font-size: 0.82rem;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.84rem;
     }
-    .status-badge.aktif  { background: #fef3c7; color: #92400e; }
-    .status-badge.odendi { background: #d1fae5; color: #065f46; }
+    .status-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .status-badge.aktif  { background: rgba(217, 164, 65, 0.18); color: #7A5418; }
+    .status-badge.odendi { background: rgba(47, 107, 63, 0.14); color: var(--accent); }
 
-    /* ── FOOTER ── */
+    /* ── ALT BİLGİ ── */
     .receipt-footer {
-      border-top: 1px dashed #d0f4f2;
-      padding: 16px 24px;
+      border-top: 1px dashed var(--line-2);
+      padding: 16px 24px 20px;
       text-align: center;
-      font-size: 0.75rem;
-      color: #6b8e8b;
+      font-size: 0.78rem;
+      color: var(--ink-2);
       line-height: 1.7;
     }
 
-    /* ── ACTIONS ── */
+    /* ── DÜĞMELER ── */
     .receipt-actions {
       display: flex;
       gap: 10px;
-      padding: 20px 16px 0;
+      padding: 18px 0 0;
       width: 100%;
       max-width: 420px;
     }
-    .btn-print {
+    .receipt-actions button {
       flex: 1;
-      padding: 14px;
-      background: #0d8a80;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .btn-print:hover { background: #0a7068; }
-    .btn-close {
-      flex: 1;
-      padding: 14px;
-      background: #fff;
-      color: #374151;
-      border: 1.5px solid #e5e7eb;
-      border-radius: 12px;
-      font-size: 1rem;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 13px;
+      border-radius: 13px;
+      font-family: inherit;
+      font-size: 0.96rem;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: background 0.15s, transform 0.1s;
     }
-    .btn-close:hover { background: #f9fafb; }
+    .receipt-actions button:active { transform: scale(0.98); }
+    .receipt-actions svg { width: 18px; height: 18px; }
+    .btn-print { background: var(--accent); color: #fff; border: none; box-shadow: 0 6px 16px rgba(47, 107, 63, 0.28); }
+    .btn-print:hover { background: var(--accent-hov); }
+    .btn-close {
+      background: rgba(255, 255, 255, 0.7);
+      -webkit-backdrop-filter: var(--blur);
+      backdrop-filter: var(--blur);
+      color: var(--ink);
+      border: 1px solid var(--line-2);
+    }
+    .btn-close:hover { background: #fff; }
 
     @media print {
-      body { background: #fff; padding: 0; }
-      .receipt { box-shadow: none; border-radius: 0; max-width: 100%; }
+      body::before { display: none; }
+      html, body { background: #fff; padding: 0; }
+      .receipt { box-shadow: none; border: none; border-radius: 0; max-width: 100%; background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
       .receipt-actions { display: none; }
-      .receipt-header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .mark, .status-badge, .receipt-meta { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     }
   </style>
 </head>
@@ -201,16 +202,17 @@
 <div class="receipt">
 
   <div class="receipt-header">
-    <div class="receipt-logo">🌿</div>
+    <div class="mark">ÇR</div>
     <div class="receipt-restaurant">Sapanca Çiftlik Restoran</div>
+    <div class="receipt-sub">Adisyon</div>
   </div>
 
   <div class="receipt-meta">
     <div class="meta-block">
       <span class="meta-label">Masa</span>
-      <span class="meta-value">{{ order.table_number | upper }}</span>
+      <span class="meta-value">{{ order.table_number }}</span>
     </div>
-    <div class="meta-block" style="text-align:center">
+    <div class="meta-block">
       <span class="meta-label">Garson</span>
       <span class="meta-value">{{ order.waiter or '—' }}</span>
     </div>
@@ -222,39 +224,39 @@
 
   <div class="receipt-items">
     <div class="items-header">
-      <span>Adet</span>
-      <span style="flex:1;padding-left:8px">Ürün</span>
+      <span style="min-width:28px">Adet</span>
+      <span style="flex:1">Ürün</span>
       <span style="min-width:60px;text-align:right">Birim</span>
       <span style="min-width:72px;text-align:right">Tutar</span>
     </div>
 
     {% for item in items %}
     <div class="item-row">
-      <span class="item-qty">{{ item.quantity }}x</span>
+      <span class="item-qty">{{ item.quantity }}×</span>
       <span class="item-name">{{ item.item_name }}</span>
-      <span class="item-unit">₺{{ "%.0f"|format(item.item_price) }}</span>
-      <span class="item-total">₺{{ "%.0f"|format(item.item_price * item.quantity) }}</span>
+      <span class="item-unit">₺{{ "{:,.0f}".format(item.item_price)|replace(",", ".") }}</span>
+      <span class="item-total">₺{{ "{:,.0f}".format(item.item_price * item.quantity)|replace(",", ".") }}</span>
     </div>
     {% endfor %}
   </div>
 
   {% if order.notes %}
-  <div class="receipt-notes">📝 {{ order.notes }}</div>
+  <div class="receipt-notes"><b>Not:</b>{{ order.notes }}</div>
   {% endif %}
 
   <div class="receipt-total">
     <div class="total-row">
       <span class="total-label">Toplam Tutar</span>
-      <span class="total-amount">₺{{ "%.0f"|format(order.total) }}</span>
+      <span class="total-amount">₺{{ "{:,.0f}".format(order.total)|replace(",", ".") }}</span>
     </div>
     {% if order.payment_method %}
-    <div style="margin-top:8px;font-size:0.8rem;color:#6b8e8b;">Ödeme: {{ order.payment_method }}</div>
+    <div class="payment-line">Ödeme: {{ order.payment_method }}</div>
     {% endif %}
   </div>
 
   <div class="receipt-status">
     <span class="status-badge {{ 'odendi' if order.status == 'Ödendi' else 'aktif' }}">
-      {{ '✓ Ödendi' if order.status == 'Ödendi' else '⏳ Ödeme Bekleniyor' }}
+      {{ 'Ödendi' if order.status == 'Ödendi' else 'Ödeme bekleniyor' }}
     </span>
   </div>
 
@@ -266,17 +268,20 @@
 </div>
 
 <div class="receipt-actions">
-  <button class="btn-print" onclick="window.print()">🖨 Yazdır / PDF</button>
+  <button class="btn-print" onclick="window.print()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Yazdır / PDF
+  </button>
   <button class="btn-close" onclick="window.close()">Kapat</button>
 </div>
 
 <script>
+  // created_at UTC olarak tutuluyor; "Z" ekleyip tarayıcının saat dilimine (Türkiye) çeviriyoruz
   const raw = "{{ order.created_at }}";
   try {
-    const d = new Date(raw.replace(" ", "T"));
-    const local = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+    const d = new Date(raw.replace(" ", "T") + "Z");
     document.getElementById("order-time").textContent =
-      local.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      d.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   } catch(e) {}
 </script>
 

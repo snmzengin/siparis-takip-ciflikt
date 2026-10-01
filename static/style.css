@@ -347,6 +347,16 @@ body::before {
 }
 
 .filter-btn:hover { color: var(--ink); }
+
+.orders-date-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -10px 0 20px;
+}
+.orders-date-bar input[type="date"] { width: auto; }
+.orders-day-summary { font-size: 0.85rem; color: var(--ink-2); margin-left: 4px; }
 .filter-btn.active {
   background: #fff;
   color: var(--ink);
@@ -444,15 +454,30 @@ body::before {
 .expense-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .expense-list-header h3 { font-size: 0.98rem; color: var(--ink); }
 .expense-total-badge { font-size: 0.92rem; font-weight: 700; color: var(--ink); }
+.lodging-form .form-row { flex: 1 1 160px; padding: 0; }
+.lodging-form .form-row label { white-space: nowrap; }
+.lodging-actions { display: flex; gap: 8px; }
+.lodging-pay { font-weight: 600; padding: 10px 16px; }
+.lodging-pay.nakit { color: var(--c-nakit); }
+.lodging-pay.kart  { color: var(--c-kart); }
+.lodging-pay.havale { color: #8A6D12; }
+.pay-chip { font-size: 0.76rem; font-weight: 600; padding: 3px 9px; border-radius: 7px; }
+.pay-chip.nakit { background: rgba(192, 103, 58, 0.12); color: var(--c-nakit); }
+.pay-chip.kart  { background: rgba(62, 111, 176, 0.12); color: var(--c-kart); }
+.pay-chip.havale { background: rgba(201, 162, 39, 0.18); color: #7A5E0E; }
+
 .receipt-link { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .receipt-link:hover { text-decoration: underline; }
 
 /* ── ORDER CARDS ────────────────────────────────────────────────────────── */
+/* Aktif siparişler yan yana 4'lü; dar ekranlarda 3 / 2 / 1'e iner */
 .orders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
+@media (max-width: 1150px) { .orders-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px)  { .orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .order-card {
   border-radius: var(--radius);
@@ -564,10 +589,10 @@ body::before {
 
 .paid-label { flex: 1; color: var(--accent); font-weight: 600; font-size: 0.86rem; }
 
-.order-actions-secondary { display: flex; gap: 6px; margin-top: 6px; }
+.order-actions-secondary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
 .sec-btn {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -863,7 +888,97 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-2); font-size: 0.95rem; grid-column: 1 / -1; }
 
 /* ── ÖDEME MODAL ────────────────────────────────────────────────────────── */
-.payment-box { max-width: 420px; }
+.payment-box { max-width: 480px; }
+
+/* Ödeme ekranındaki detaylı hesap (müşteriye gösterilir) */
+.payment-bill { padding: 0 26px 14px; }
+.bill-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.84rem; color: var(--ink-2); margin-bottom: 10px;
+}
+.bill-table {
+  background: var(--olive); color: var(--cream);
+  padding: 4px 11px; border-radius: 8px;
+  font-weight: 600; font-size: 0.86rem; text-transform: capitalize;
+}
+.bill-items {
+  max-height: 38vh; overflow-y: auto;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 4px 14px;
+}
+.bill-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 1rem;
+}
+.bill-row:last-child { border-bottom: none; }
+.bill-qty  { color: var(--ink-3); font-weight: 600; min-width: 28px; }
+.bill-name { flex: 1; color: var(--ink); }
+.bill-name small { display: block; font-size: 0.78rem; color: var(--ink-3); margin-top: 1px; }
+.bill-amt  { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.bill-meta-right { display: flex; align-items: center; gap: 10px; }
+
+/* Hesabı bölme */
+.bill-items.split { padding: 4px 8px; }
+.split-row { cursor: pointer; border-radius: 10px; padding: 9px 8px; border-bottom-color: transparent; margin: 1px 0; transition: background 0.12s; user-select: none; }
+.split-row:hover { background: rgba(255, 255, 255, 0.8); }
+.split-row.is-selected { background: rgba(47, 107, 63, 0.10); }
+.split-row.is-paid { cursor: default; opacity: 0.55; }
+.split-row.is-paid .bill-amt { text-decoration: line-through; }
+.tick {
+  width: 22px; height: 22px; flex-shrink: 0; align-self: center;
+  border-radius: 7px;
+  border: 1.5px solid var(--line-2);
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.tick svg { width: 14px; height: 14px; }
+.split-row.is-selected .tick { background: var(--accent); border-color: var(--accent); }
+.split-row.is-paid .tick { background: var(--ink-3); border-color: var(--ink-3); }
+
+.split-summary { margin-top: 12px; }
+.split-selected {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 14px;
+  background: rgba(47, 107, 63, 0.10);
+  border-radius: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.split-selected strong { font-size: 1.6rem; letter-spacing: -0.02em; }
+.split-remaining {
+  display: flex; justify-content: space-between;
+  padding: 10px 14px 0;
+  font-size: 0.95rem; color: var(--ink-2); font-weight: 600;
+}
+.split-payments {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  padding: 8px 14px 0;
+  font-size: 0.82rem; color: var(--ink-2);
+}
+.link-btn {
+  margin-left: auto;
+  background: none; border: none; padding: 0;
+  font-family: inherit; font-size: 0.82rem; font-weight: 600;
+  color: var(--danger); cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
+
+.split-pay-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 26px 8px; }
+.split-pay-actions .payment-opt { flex-direction: row; justify-content: center; padding: 16px 12px; gap: 10px; }
+.split-pay-actions .payment-opt svg { width: 22px; height: 22px; }
+.split-pay-actions .payment-opt:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.bill-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 4px 0;
+  font-size: 1rem; color: var(--ink-2);
+}
+.bill-total strong { font-size: 1.6rem; color: var(--olive); letter-spacing: -0.02em; }
 
 .discount-row {
   display: flex;
@@ -889,7 +1004,7 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
 .discount-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 164, 65, 0.2); }
 .discount-total { font-size: 0.82rem; color: var(--ink-3); margin-left: auto; }
 .discount-total strong { color: var(--ink); font-size: 1rem; }
-.payment-subtitle { color: var(--ink-3); font-size: 0.88rem; margin-bottom: 18px; margin-top: -8px; padding: 0 26px; display: block; }
+.payment-subtitle { color: var(--ink-2); font-size: 0.88rem; margin-bottom: 14px; margin-top: 16px; padding: 0 26px; display: block; }
 
 .payment-options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 8px; padding: 0 26px; }
 
@@ -912,6 +1027,43 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
 .payment-opt.karma { color: var(--gold-dark); }
 .payment-opt:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(33, 28, 18, 0.10); }
 .payment-opt:active { transform: scale(0.97); }
+
+/* Açık adisyonu düzenleme */
+.edit-order-box { max-width: 520px; }
+.edit-order-items {
+  margin: 0 26px 10px; padding: 4px 12px;
+  max-height: 34vh; overflow-y: auto;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--line); border-radius: 14px;
+}
+.edit-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.edit-row:last-child { border-bottom: none; }
+.edit-name { flex: 1; font-size: 0.94rem; color: var(--ink); }
+.edit-name small { display: block; font-size: 0.76rem; color: var(--ink-3); font-weight: 600; margin-top: 1px; }
+.edit-row.is-changed .edit-name small { color: var(--gold-dark); }
+.edit-row.is-new .edit-name small { color: var(--accent); }
+.edit-row.is-removed .edit-name { text-decoration: line-through; color: var(--ink-3); }
+.edit-row.is-removed .edit-name small { color: var(--danger); text-decoration: none; }
+.edit-amt { min-width: 72px; text-align: right; font-weight: 600; color: var(--ink); }
+.edit-stepper { display: inline-flex; align-items: center; gap: 2px; background: rgba(33, 28, 18, 0.06); border-radius: 9px; padding: 2px; }
+.edit-stepper button {
+  width: 30px; height: 30px; border: none; border-radius: 7px; background: transparent;
+  font-size: 1.1rem; color: var(--ink); cursor: pointer; font-family: inherit;
+}
+.edit-stepper button:hover { background: #fff; box-shadow: 0 1px 3px rgba(33, 28, 18, 0.12); }
+.edit-stepper .num { min-width: 22px; text-align: center; font-weight: 600; }
+.edit-order-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0 30px 16px; color: var(--ink-2); }
+.edit-order-total strong { font-size: 1.4rem; color: var(--olive); }
+.bmenu-empty { padding: 16px 0; text-align: center; color: var(--ink-3); font-size: 0.88rem; }
+.pick-plus { display: inline-block; margin-left: 8px; color: var(--accent); font-size: 1rem; }
+.edit-order-note { margin: 0 26px 8px; font-size: 0.78rem; color: var(--ink-3); }
+
+.edit-pay-info {
+  margin: 0 26px 16px; padding: 10px 14px;
+  background: rgba(33, 28, 18, 0.05); border-radius: 10px;
+  font-size: 0.88rem; color: var(--ink-2);
+}
+.edit-pay-info b { color: var(--ink); text-transform: capitalize; }
 
 .split-total-info {
   background: rgba(33, 28, 18, 0.05); border-radius: 10px;

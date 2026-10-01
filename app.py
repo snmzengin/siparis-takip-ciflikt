@@ -222,20 +222,22 @@ def enqueue_ticket(station, title, table, waiter, items, notes):
         )
 
 
-def route_and_print_new_items(table, waiter, items, notes, menu_categories):
-    """Yeni eklenen ürünleri kategorisine göre pizza/mutfak fişine böler ve kuyruğa ekler."""
+def route_and_print_new_items(table, waiter, items, notes, menu_categories, cancel=False):
+    """Yeni eklenen ürünleri kategorisine göre pizza/mutfak fişine böler ve kuyruğa ekler.
+    cancel=True: adisyondan çıkarılan ürünler için "IPTAL" fişi basar."""
     if get_setting("printer_enabled", "0") != "1":
         return
     pizza_items, mutfak_items = [], []
     for it in items:
         cat = menu_categories.get(it.get("menu_item_id"), "")
         (pizza_items if is_pizza_category(cat) else mutfak_items).append(it)
+    prefix = "IPTAL - " if cancel else ""
 
     def worker():
         if pizza_items:
-            enqueue_ticket("pizza", "PIZZA TEZGAHI", table, waiter, pizza_items, notes)
+            enqueue_ticket("pizza", prefix + "PIZZA TEZGAHI", table, waiter, pizza_items, notes)
         if mutfak_items:
-            enqueue_ticket("mutfak", "MUTFAK", table, waiter, mutfak_items, notes)
+            enqueue_ticket("mutfak", prefix + "MUTFAK", table, waiter, mutfak_items, notes)
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -410,7 +412,42 @@ def _z_summary(period, date_str):
               AND (mi.category LIKE '%ahvalt%' OR oi.item_name LIKE '%ahvalt%')
             GROUP BY oi.item_name ORDER BY total_qty DESC
         """, rng).fetchall()
-    # Servis ayrımı ürüne göre: kahvaltı ürünleri kahvaltı servisi, geri kalan her şey akşam servisi
+        # Pizza satışı: pizza tezgahına giden kategori ("Pizzalar"); menüden silinmişse ürün adından
+        pizza_items = conn.execute("""
+            SELECT oi.item_name,
+                   SUM(oi.quantity)                 AS total_qty,
+                   SUM(oi.item_price * oi.quantity) AS total_amount
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+            WHERE DATE(o.created_at, '+3 hours') BETWEEN ? AND ? AND o.status = 'Ödendi'
+              AND (LOWER(mi.category) LIKE '%pizza%' OR LOWER(oi.item_name) LIKE '%pizza%')
+            GROUP BY oi.item_name ORDER BY total_qty DESC, total_amount DESC
+        """, rng).fetchall()
+    pizza_items = [dict(r) for r in pizza_items]
+
+    # İçecek satışı: adında çay/kahve geçenler "Çay & Kahve", İçecekler kategorisindeki diğerleri "Meşrubat"
+    with get_db() as conn:
+        categories = {r["name"]: r["category"] for r in conn.execute("SELECT name, category FROM menu_items")}
+    drinks = {"mesrubat": [], "sicak": []}
+    for it in report["items"]:
+        name = tr_lower(it["item_name"])
+        if "çay" in name or "kahve" in name:
+            drinks["sicak"].append(it)
+        elif "içecek" in tr_lower(categories.get(it["item_name"]) or ""):
+            drinks["mesrubat"].append(it)
+    for key, rows in drinks.items():
+        report[f"{key}_items"] = rows
+        report[f"{key}_qty"] = sum(r["total_qty"] for r in rows)
+        report[f"{key}_total"] = round(sum(r["total_amount"] for r in rows), 2)
+
+    report.update({
+        "pizza_items": pizza_items,
+        "pizza_qty":   sum(i["total_qty"] for i in pizza_items),
+        "pizza_total": round(sum(i["total_amount"] for i in pizza_items), 2),
+    })
+    # Servis ayrımı ürüne göre (menü fiyatlarıyla): kahvaltı ürünleri kahvaltı servisi, geri kalanı akşam.
+    # İndirim burada düşülmez; toplam kazanç ise tahsil edilen (indirimli) tutardır.
     breakfast_items = [dict(r) for r in breakfast_items]
     breakfast_total = round(sum(i["total_amount"] for i in breakfast_items), 2)
     items_total = sum(i["total_amount"] or 0 for i in report["items"])
@@ -425,6 +462,12 @@ def _z_summary(period, date_str):
         "active_amount": active["amount"],
         "other_total":   round(max(0, report["total_amount"] - report["nakit_total"] - report["kart_total"]), 2),
     })
+    # Konaklama tahsilatları ayrı tutulur; kasa satırı restoran + konaklama toplamıdır (POS ile karşılaştırma için)
+    report.update(_lodging_for_range(start.isoformat(), end.isoformat()))
+    report["kasa_nakit"] = round(report["nakit_total"] + report["lodging_nakit"], 2)
+    report["kasa_kart"] = round(report["kart_total"] + report["lodging_kart"], 2)
+    report["kasa_havale"] = report["lodging_havale"]  # havale sadece konaklamada; POS/kasadan geçmez
+    report.update(_cash_float_for_range(start.isoformat(), end.isoformat()))
     return report
 
 
@@ -475,12 +518,32 @@ def build_z_ticket(r, username):
     if r["other_total"] > 0.5:
         body += _row("Diger", _money(r["other_total"]))
     body += section("SERVIS DAGILIMI")
-    body += _row("Kahvalti servisi", _money(r["breakfast_total"]))
+    body += _row(f"Kahvalti servisi ({r['breakfast_qty']} porsiyon)", _money(r["breakfast_total"]))
     body += _row("Aksam yemegi servisi", _money(r["dinner_total"]))
-    body += section("KAHVALTI SATISI")
-    for it in r["breakfast_items"]:
+    body += section("PIZZA SATISI")
+    for it in r["pizza_items"]:
         body += _row(f"{it['total_qty']} x {it['item_name']}", _money(it["total_amount"]))
-    body += _row(f"Toplam {r['breakfast_qty']} porsiyon", _money(r["breakfast_total"]))
+    body += _row(f"Toplam {r['pizza_qty']} pizza", _money(r["pizza_total"]))
+    body += section("ICECEK SATISI")
+    body += _row(f"Mesrubat ({r['mesrubat_qty']} adet)", _money(r["mesrubat_total"]))
+    body += _row(f"Cay & Kahve ({r['sicak_qty']} adet)", _money(r["sicak_total"]))
+    body += section("KONAKLAMA TAHSILATI")
+    for p in r["lodging_payments"]:
+        who = f"{p['unit']}" + (f" {p['guest_name']}" if p["guest_name"] else "")
+        short = {"Nakit": "Nakit", "Kredi Kartı": "Kart", "Havale": "Havale"}.get(p["payment_method"], p["payment_method"])
+        body += _row(f"{who} ({short})", _money(p["amount"]))
+    if not r["lodging_payments"]:
+        body += "Tahsilat yok\n"
+    body += _row("Konaklama toplam", _money(r["lodging_total"]))
+    body += section("KASA (RESTORAN + KONAKLAMA)")
+    body += _row("Nakit", _money(r["kasa_nakit"]))
+    body += _row("Kredi Karti", _money(r["kasa_kart"]))
+    if r["kasa_havale"]:
+        body += _row("Havale (banka)", _money(r["kasa_havale"]))
+    body += _row("Acilis kasasi (devreden)",
+                 _money(r["float_opening"]) if r["float_opening"] is not None else "girilmedi")
+    body += _row("Kasada birakilan (yarina)",
+                 _money(r["float_closing"]) if r["float_closing"] is not None else "girilmedi")
     body += section("GARSON SATISLARI")
     for w in r["waiters"]:
         body += _row(f"{w['waiter']} ({w['order_count']} adisyon)", _money(w["total_amount"]))
@@ -979,10 +1042,56 @@ def add_items_to_order(order_id):
     return jsonify({"ok": True, "added": extra})
 
 
+@app.route("/api/orders/<int:order_id>/items/<int:item_id>", methods=["PUT"])
+def update_order_item_quantity(order_id, item_id):
+    """Açık adisyondaki ürünün adedini değiştirir (0 = ürünü çıkar); tutar ve stok güncellenir,
+    çıkarılan adet için mutfağa/pizza tezgahına İPTAL fişi gider."""
+    try:
+        new_qty = int((request.json or {}).get("quantity"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Geçersiz adet"}), 400
+    if new_qty < 0:
+        return jsonify({"error": "Geçersiz adet"}), 400
+    with get_db() as conn:
+        order = conn.execute("SELECT * FROM orders WHERE id=? AND status='Aktif'", (order_id,)).fetchone()
+        if not order:
+            return jsonify({"error": "Sipariş bulunamadı veya kapalı"}), 404
+        item = conn.execute("SELECT * FROM order_items WHERE id=? AND order_id=?", (item_id, order_id)).fetchone()
+        if not item:
+            return jsonify({"error": "Ürün bulunamadı"}), 404
+        delta = new_qty - item["quantity"]
+        if delta == 0:
+            return jsonify({"ok": True})
+        if new_qty == 0:
+            conn.execute("DELETE FROM order_items WHERE id=?", (item_id,))
+        else:
+            conn.execute("UPDATE order_items SET quantity=? WHERE id=?", (new_qty, item_id))
+        conn.execute("UPDATE orders SET total = MAX(0, total + ?) WHERE id=?", (delta * item["item_price"], order_id))
+        if item["menu_item_id"]:
+            conn.execute("UPDATE stock_items SET quantity = quantity - ? WHERE menu_item_id = ?",
+                         (delta, item["menu_item_id"]))
+        new_total = conn.execute("SELECT total FROM orders WHERE id=?", (order_id,)).fetchone()["total"]
+        # Bungalov hesabına yazılmış siparişse oradaki tutarı da güncelle
+        conn.execute("UPDATE bungalov_charges SET amount=? WHERE order_id=?", (new_total, order_id))
+        menu_categories = {r["id"]: r["category"] for r in conn.execute("SELECT id, category FROM menu_items")}
+    if delta < 0:
+        removed = [{"menu_item_id": item["menu_item_id"], "name": item["item_name"], "quantity": -delta}]
+        route_and_print_new_items(order["table_number"], order["waiter"], removed, "", menu_categories, cancel=True)
+    return jsonify({"ok": True, "total": new_total})
+
+
 @app.route("/api/orders", methods=["GET"])
 def list_orders():
+    # ?date=YYYY-MM-DD → açık siparişlerin hepsi + o güne ait kapanmış siparişler (Z raporuyla aynı gün tanımı)
+    date = request.args.get("date")
     with get_db() as conn:
-        orders = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+        if date:
+            orders = conn.execute(
+                """SELECT * FROM orders WHERE status='Aktif' OR DATE(created_at, '+3 hours') = ?
+                   ORDER BY created_at DESC""", (date,)
+            ).fetchall()
+        else:
+            orders = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
         result = []
         for o in orders:
             order = dict(o)
@@ -1075,6 +1184,25 @@ def update_order_status(order_id):
                              (status, payment_method, order_id))
             else:
                 conn.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/orders/<int:order_id>/payment", methods=["PUT"])
+def update_order_payment(order_id):
+    """Ödenmiş siparişin sadece ödeme yöntemini düzeltir (yanlış işaretleme için);
+    kapanış saati ve tutar değişmez."""
+    import re
+    method = ((request.json or {}).get("payment_method") or "").strip()
+    karma = re.fullmatch(r"Nakit: ₺[\d.,]+ / Kart: ₺[\d.,]+", method)
+    if method not in ("Nakit", "Kredi Kartı") and not karma:
+        return jsonify({"error": "Geçersiz ödeme yöntemi"}), 400
+    with get_db() as conn:
+        order = conn.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
+        if not order:
+            return jsonify({"error": "Sipariş bulunamadı"}), 404
+        if order["status"] != "Ödendi":
+            return jsonify({"error": "Sadece ödenmiş siparişin ödemesi düzenlenebilir"}), 400
+        conn.execute("UPDATE orders SET payment_method=? WHERE id=?", (method, order_id))
     return jsonify({"ok": True})
 
 
@@ -1239,6 +1367,38 @@ def add_bungalov_charge(account_id):
     return jsonify({"id": cur.lastrowid}), 201
 
 
+@app.route("/api/bungalov/account/<int:account_id>/menu-items", methods=["POST"])
+def add_bungalov_menu_items(account_id):
+    """Menüden seçilen ürünleri bungalov cari hesabına yazar; restorandan sipariş olduğu için
+    mutfak/pizza fişi basılır ve stoktan düşülür."""
+    items = (request.json or {}).get("items") or []
+    items = [i for i in items if int(i.get("quantity") or 0) > 0]
+    if not items:
+        return jsonify({"error": "En az bir ürün seçin"}), 400
+    with get_db() as conn:
+        account = conn.execute("SELECT * FROM bungalov_accounts WHERE id=? AND status='Açık'", (account_id,)).fetchone()
+        if not account:
+            return jsonify({"error": "Açık hesap bulunamadı"}), 404
+        menu = {r["id"]: r for r in conn.execute("SELECT id, name, price, category FROM menu_items")}
+        lines = []
+        for i in items:
+            m = menu.get(i.get("menu_item_id"))
+            if not m:
+                return jsonify({"error": "Menüde olmayan ürün"}), 400
+            qty = int(i["quantity"])
+            # Fiyat menüden alınır (tarayıcıdan gelen fiyata güvenilmez)
+            conn.execute(
+                "INSERT INTO bungalov_charges (account_id, description, amount) VALUES (?, ?, ?)",
+                (account_id, f"{qty} × {m['name']}", m["price"] * qty)
+            )
+            conn.execute("UPDATE stock_items SET quantity = quantity - ? WHERE menu_item_id = ?", (qty, m["id"]))
+            lines.append({"menu_item_id": m["id"], "name": m["name"], "quantity": qty})
+        menu_categories = {mid: r["category"] for mid, r in menu.items()}
+    unit = LODGING_UNITS[account["bungalov_no"] - 1] if 1 <= account["bungalov_no"] <= len(LODGING_UNITS) else f"Bungalov {account['bungalov_no']}"
+    route_and_print_new_items(unit, "", lines, f"Misafir: {account['guest_name']}", menu_categories)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/bungalov/charge/<int:charge_id>", methods=["DELETE"])
 def delete_bungalov_charge(charge_id):
     with get_db() as conn:
@@ -1253,12 +1413,197 @@ def checkout_bungalov(account_id):
     checkout_date  = data.get("checkout_date", "").strip()
     if not payment_method or not checkout_date:
         return jsonify({"error": "Ödeme yöntemi ve çıkış tarihi zorunlu"}), 400
-    with get_db() as conn:
+    if payment_method not in ("Nakit", "Kredi Kartı", "Havale", "Karma"):
+        return jsonify({"error": "Geçersiz ödeme yöntemi"}), 400
+    with _lodging_db() as conn:
+        account = conn.execute("SELECT * FROM bungalov_accounts WHERE id=? AND status='Açık'", (account_id,)).fetchone()
+        if not account:
+            return jsonify({"error": "Açık hesap bulunamadı"}), 404
+        # Restoranda ayrıca ödenmiş siparişler kasaya zaten girdi; onlar hariç tahsil edilen tutar
+        total = conn.execute(
+            """SELECT COALESCE(SUM(ch.amount), 0) FROM bungalov_charges ch
+               LEFT JOIN orders o ON o.id = ch.order_id
+               WHERE ch.account_id=? AND (o.id IS NULL OR o.status != 'Ödendi')""",
+            (account_id,)
+        ).fetchone()[0]
+        if payment_method == "Karma":
+            try:
+                nakit = float(data.get("nakit_amount") or 0)
+            except (TypeError, ValueError):
+                nakit = -1
+            if not 0 <= nakit <= total:
+                return jsonify({"error": "Nakit tutarı 0 ile toplam arasında olmalı"}), 400
+            parts = [("Nakit", nakit), ("Kredi Kartı", total - nakit)]
+        else:
+            parts = [(payment_method, total)]
         conn.execute(
             "UPDATE bungalov_accounts SET status='Kapandı', payment_method=?, checkout_date=? WHERE id=?",
             (payment_method, checkout_date, account_id)
         )
+        # Tahsilat, ödemenin alındığı günün (şu an) kasasına konaklama tahsilatı olarak yazılır
+        no = account["bungalov_no"]
+        unit = LODGING_UNITS[no - 1] if 1 <= no <= len(LODGING_UNITS) else f"Bungalov {no}"
+        for method, amount in parts:
+            if amount > 0:
+                conn.execute(
+                    "INSERT INTO lodging_payments (unit, guest_name, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?)",
+                    (unit, account["guest_name"], round(amount, 2), method, "Hesap kapanışı")
+                )
     return jsonify({"ok": True})
+
+
+# ── KONAKLAMA ÖDEMELERİ (misafirin kalan konaklama ücreti tahsilatı) ──────────
+
+LODGING_UNITS = ["Bungalov 1", "Bungalov 2", "Dağ Evi", "Kütük Ev"]
+LODGING_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS lodging_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        unit TEXT NOT NULL,
+        guest_name TEXT,
+        amount REAL NOT NULL,
+        payment_method TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+"""
+
+
+def _lodging_db():
+    conn = get_db()
+    conn.executescript(LODGING_SCHEMA)
+    return conn
+
+
+@app.route("/api/lodging-payments", methods=["GET"])
+def list_lodging_payments():
+    import datetime as dt
+    date = request.args.get("date", dt.date.today().isoformat())
+    with _lodging_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM lodging_payments WHERE DATE(created_at, '+3 hours') = ? ORDER BY created_at DESC",
+            (date,)
+        ).fetchall()
+    return jsonify({"units": LODGING_UNITS, "payments": [dict(r) for r in rows]})
+
+
+@app.route("/api/lodging-payments", methods=["POST"])
+def add_lodging_payment():
+    data = request.json or {}
+    unit = (data.get("unit") or "").strip()
+    method = (data.get("payment_method") or "").strip()
+    try:
+        amount = float(data.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    if unit not in LODGING_UNITS:
+        return jsonify({"error": "Konaklama yeri seçin"}), 400
+    if amount <= 0:
+        return jsonify({"error": "Tutar girin"}), 400
+    if method not in ("Nakit", "Kredi Kartı", "Havale"):
+        return jsonify({"error": "Ödeme yöntemi seçin"}), 400
+    with _lodging_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO lodging_payments (unit, guest_name, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?)",
+            (unit, (data.get("guest_name") or "").strip() or None, amount, method,
+             (data.get("notes") or "").strip() or None)
+        )
+    return jsonify({"ok": True, "id": cur.lastrowid}), 201
+
+
+@app.route("/api/lodging-payments/<int:pid>", methods=["DELETE"])
+def delete_lodging_payment(pid):
+    with _lodging_db() as conn:
+        conn.execute("DELETE FROM lodging_payments WHERE id=?", (pid,))
+    return jsonify({"ok": True})
+
+
+# ── KASA DEVRİ (gün sonunda ertesi gün için kasada bırakılan bozuk para) ─────
+
+CASH_FLOAT_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS cash_floats (
+        float_date TEXT PRIMARY KEY,
+        amount REAL NOT NULL,
+        notes TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+"""
+
+
+def _cash_db():
+    conn = get_db()
+    conn.executescript(CASH_FLOAT_SCHEMA)
+    return conn
+
+
+@app.route("/api/cash-floats", methods=["GET"])
+def list_cash_floats():
+    with _cash_db() as conn:
+        rows = conn.execute("SELECT * FROM cash_floats ORDER BY float_date DESC LIMIT 30").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/cash-floats", methods=["PUT"])
+def save_cash_float():
+    data = request.json or {}
+    date = (data.get("date") or "").strip()
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+        amount = float(data.get("amount"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Tarih ve tutar girin"}), 400
+    if amount < 0:
+        return jsonify({"error": "Tutar eksi olamaz"}), 400
+    with _cash_db() as conn:
+        conn.execute(
+            """INSERT INTO cash_floats (float_date, amount, notes, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(float_date) DO UPDATE SET amount=excluded.amount, notes=excluded.notes,
+                                                     updated_at=CURRENT_TIMESTAMP""",
+            (date, amount, (data.get("notes") or "").strip() or None)
+        )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/cash-floats/<date>", methods=["DELETE"])
+def delete_cash_float(date):
+    with _cash_db() as conn:
+        conn.execute("DELETE FROM cash_floats WHERE float_date=?", (date,))
+    return jsonify({"ok": True})
+
+
+def _cash_float_for_range(date_from, date_to):
+    """Açılış = aralıktan önceki son devir; kapanış = aralığın son gününde bırakılan."""
+    with _cash_db() as conn:
+        opening = conn.execute(
+            "SELECT float_date, amount FROM cash_floats WHERE float_date < ? ORDER BY float_date DESC LIMIT 1",
+            (date_from,)
+        ).fetchone()
+        closing = conn.execute(
+            "SELECT float_date, amount FROM cash_floats WHERE float_date = ?", (date_to,)
+        ).fetchone()
+    return {
+        "float_opening":      opening["amount"] if opening else None,
+        "float_opening_date": opening["float_date"] if opening else None,
+        "float_closing":      closing["amount"] if closing else None,
+    }
+
+
+def _lodging_for_range(date_from, date_to):
+    with _lodging_db() as conn:
+        rows = conn.execute(
+            """SELECT unit, guest_name, amount, payment_method FROM lodging_payments
+               WHERE DATE(created_at, '+3 hours') BETWEEN ? AND ? ORDER BY created_at""",
+            (date_from, date_to)
+        ).fetchall()
+    nakit = sum(r["amount"] for r in rows if r["payment_method"] == "Nakit")
+    kart = sum(r["amount"] for r in rows if r["payment_method"] == "Kredi Kartı")
+    havale = sum(r["amount"] for r in rows if r["payment_method"] == "Havale")
+    return {
+        "lodging_payments": [dict(r) for r in rows],
+        "lodging_total":    round(nakit + kart + havale, 2),
+        "lodging_nakit":    round(nakit, 2),
+        "lodging_kart":     round(kart, 2),
+        "lodging_havale":   round(havale, 2),
+    }
 
 
 @app.route("/api/bungalov/history")

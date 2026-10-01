@@ -39,6 +39,14 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 22V12h6v10"/></svg></span>
         <span>Bungalov</span>
       </button>
+      <button class="nav-item" data-tab="lodging">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20V8l10-5 10 5v12"/><path d="M6 20v-6h12v6"/><path d="M12 11v.01"/><path d="M2 20h20"/></svg></span>
+        <span>Konaklama Ödemeleri</span>
+      </button>
+      <button class="nav-item" data-tab="cashfloat">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/></svg></span>
+        <span>Kasa Devri</span>
+      </button>
       <button class="nav-item" data-tab="stock">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span>Stok</span>
@@ -72,7 +80,7 @@
     <div class="sidebar-order-btn">
       <a href="/garson" target="_blank" class="order-entry-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        Sipariş Giriş
+        Adisyon
       </a>
     </div>
 
@@ -103,6 +111,14 @@
         <button class="filter-btn active" data-filter="Aktif">Aktif</button>
         <button class="filter-btn" data-filter="Ödendi">Ödendi</button>
         <button class="filter-btn" data-filter="all">Tümü</button>
+      </div>
+
+      <div id="orders-date-bar" class="orders-date-bar hidden">
+        <button class="btn sm" onclick="shiftOrdersDate(-1)" title="Önceki gün">‹</button>
+        <input id="orders-date" type="date" onchange="setOrdersDate(this.value)" />
+        <button class="btn sm" onclick="shiftOrdersDate(1)" title="Sonraki gün">›</button>
+        <button class="btn sm" onclick="setOrdersDate(todayLocal())">Bugün</button>
+        <span id="orders-day-summary" class="orders-day-summary"></span>
       </div>
 
       <div id="orders-list" class="orders-grid"></div>
@@ -302,6 +318,92 @@
       </div>
     </section>
 
+    <!-- ═══ KONAKLAMA ÖDEMELERİ ═══════════════════════════════════════ -->
+    <section id="tab-lodging" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Konaklama Ödemeleri</h2>
+          <p class="page-sub">Misafirlerin kalan konaklama ücreti tahsilatları — Z Raporu'na nakit/kart olarak yansır</p>
+        </div>
+      </div>
+
+      <div class="expense-form lodging-form">
+        <div class="form-row">
+          <label>Konaklama Yeri</label>
+          <select id="lodging-unit"></select>
+        </div>
+        <div class="form-row">
+          <label>Misafir <span class="label-hint">(isteğe bağlı)</span></label>
+          <input id="lodging-guest" type="text" placeholder="Ad Soyad" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label>Tutar (₺)</label>
+          <input id="lodging-amount" type="number" min="0" step="1" placeholder="0" />
+        </div>
+        <div class="form-row">
+          <label>Not <span class="label-hint">(isteğe bağlı)</span></label>
+          <input id="lodging-notes" type="text" placeholder="örn: 2 gece kalan ödeme" autocomplete="off" />
+        </div>
+        <div class="lodging-actions">
+          <button class="btn lodging-pay nakit" onclick="addLodgingPayment('Nakit')">Nakit Alındı</button>
+          <button class="btn lodging-pay kart" onclick="addLodgingPayment('Kredi Kartı')">Kartla Alındı</button>
+          <button class="btn lodging-pay havale" onclick="addLodgingPayment('Havale')">Havale Alındı</button>
+        </div>
+        <div id="lodging-msg" class="printer-status-msg" style="width:100%;margin-top:0"></div>
+      </div>
+
+      <div class="expense-list-header">
+        <div style="display:flex;gap:10px;align-items:center">
+          <h3>Tahsilatlar</h3>
+          <input type="date" id="lodging-date" class="date-input" onchange="loadLodgingPayments()" />
+        </div>
+        <span class="expense-total-badge" id="lodging-totals"></span>
+      </div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead><tr><th>Saat</th><th>Konaklama</th><th>Misafir</th><th>Not</th><th>Ödeme</th><th>Tutar</th><th></th></tr></thead>
+          <tbody id="lodging-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ KASA DEVRİ ═══════════════════════════════════════════════ -->
+    <section id="tab-cashfloat" class="tab">
+      <div class="page-header">
+        <div>
+          <h2>Kasa Devri</h2>
+          <p class="page-sub">Gün sonunda ertesi gün için kasada bırakılan nakit — Z Raporu'nda açılış kasası olarak görünür</p>
+        </div>
+      </div>
+
+      <div class="expense-form lodging-form">
+        <div class="form-row">
+          <label>Tarih</label>
+          <input id="float-date" type="date" onchange="fillCashFloatForm()" />
+        </div>
+        <div class="form-row">
+          <label>Kasada Bırakılan (₺)</label>
+          <input id="float-amount" type="number" min="0" step="1" placeholder="0" />
+        </div>
+        <div class="form-row" style="flex:2 1 220px">
+          <label>Not <span class="label-hint">(isteğe bağlı)</span></label>
+          <input id="float-notes" type="text" placeholder="örn: bozuk para, 20'lik ve 50'likler" autocomplete="off" />
+        </div>
+        <div class="lodging-actions">
+          <button class="btn primary" onclick="saveCashFloat()">Kaydet</button>
+        </div>
+        <div id="float-msg" class="printer-status-msg" style="width:100%;margin-top:0"></div>
+      </div>
+
+      <div class="expense-list-header"><h3>Son Günler</h3></div>
+      <div class="menu-table-wrap">
+        <table>
+          <thead><tr><th>Tarih</th><th>Kasada Bırakılan</th><th>Not</th><th></th></tr></thead>
+          <tbody id="float-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ═══ Z RAPORU HESAPLARI ═══════════════════════════════════════ -->
     <section id="tab-owners" class="tab">
       <div class="page-header">
@@ -430,14 +532,29 @@
   <!-- Ödeme Yöntemi -->
   <div id="payment-modal" class="modal hidden">
     <div class="modal-box payment-box">
-      <div class="modal-header"><h3>Ödeme Yöntemi</h3></div>
-      <p class="payment-subtitle">Ödeme nasıl yapıldı?</p>
+      <div class="modal-header"><h3>Hesap</h3></div>
+
+      <div class="payment-bill" id="payment-bill"></div>
 
       <div class="discount-row">
         <label class="discount-label">İndirim (₺)</label>
         <input type="number" id="discount-input" min="0" step="1" placeholder="0"
                oninput="updatePaymentTotal()" class="discount-input" />
         <span class="discount-total">Ödenecek: <strong id="payment-final-total"></strong></span>
+      </div>
+
+      <p class="payment-subtitle" id="payment-subtitle">Ödeme nasıl yapıldı?</p>
+
+      <!-- Hesabı ürün ürün bölme: seçilenleri tahsil et -->
+      <div class="split-pay-actions hidden" id="split-pay-actions">
+        <button class="payment-opt nakit" id="split-pay-cash" onclick="paySelected('Nakit')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+          <span>Seçileni Nakit Al</span>
+        </button>
+        <button class="payment-opt kart" id="split-pay-card" onclick="paySelected('Kredi Kartı')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span>Seçileni Kartla Al</span>
+        </button>
       </div>
 
       <div class="payment-options" id="payment-options">
@@ -481,6 +598,55 @@
     </div>
   </div>
 
+  <!-- Açık adisyonu düzenle: ürün ekle / çıkar -->
+  <div id="edit-order-modal" class="modal hidden">
+    <div class="modal-box edit-order-box">
+      <div class="modal-header"><h3 id="edit-order-title">Adisyonu Düzenle</h3></div>
+      <div class="edit-order-items" id="edit-order-items"></div>
+      <div class="edit-order-total"><span>Yeni toplam</span><strong id="edit-order-total">₺0</strong></div>
+      <div class="menu-search-row">
+        <input type="text" id="edit-order-search" placeholder="Eklemek için ürün ara..." oninput="renderEditOrderPick()" autocomplete="off" />
+      </div>
+      <div class="menu-pick-list" id="edit-order-pick"></div>
+      <p class="edit-order-note">Çıkarılan ürünler için mutfağa / pizza tezgahına İPTAL fişi, eklenenler için sipariş fişi gider.</p>
+      <div class="printer-status-msg err" id="edit-order-msg" style="padding:0 26px"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeEditOrderModal()">Vazgeç</button>
+        <button class="btn primary" onclick="saveEditOrder()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ödenmiş siparişin ödeme yöntemini düzelt -->
+  <div id="edit-payment-modal" class="modal hidden">
+    <div class="modal-box payment-box">
+      <div class="modal-header"><h3>Ödemeyi Düzenle</h3></div>
+      <p class="payment-subtitle" style="margin-top:0">Yanlış işaretlenen ödeme yöntemini düzelt. Tutar ve saat değişmez.</p>
+      <p class="edit-pay-info" id="edit-pay-info"></p>
+      <div class="payment-options" id="edit-pay-options">
+        <button class="payment-opt nakit" onclick="saveEditPayment('Nakit')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+          <span>Nakit</span>
+        </button>
+        <button class="payment-opt kart" onclick="saveEditPayment('Kredi Kartı')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span>Kredi Kartı</span>
+        </button>
+        <button class="payment-opt karma" onclick="showEditKarma()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>
+          <span>Karma</span>
+        </button>
+      </div>
+      <div id="edit-pay-karma" class="hidden">
+        <div class="form-row"><label>Nakit (₺)</label><input id="edit-pay-cash" type="number" min="0" step="0.5" placeholder="0" oninput="editKarmaFill('cash')" /></div>
+        <div class="form-row"><label>Kredi Kartı (₺)</label><input id="edit-pay-card" type="number" min="0" step="0.5" placeholder="0" oninput="editKarmaFill('card')" /></div>
+        <div class="form-row"><button class="btn primary full-width" onclick="saveEditPayment('Karma')">Kaydet</button></div>
+      </div>
+      <div class="printer-status-msg err" id="edit-pay-msg" style="padding:0 26px"></div>
+      <div class="modal-actions"><button class="btn" onclick="closeEditPaymentModal()">İptal</button></div>
+    </div>
+  </div>
+
   <!-- Masa Değiştir -->
   <div id="table-change-modal" class="modal hidden">
     <div class="modal-box" style="max-width:360px">
@@ -504,6 +670,13 @@
           <optgroup label="Sol">
             <option>sol 1</option><option>sol 2</option><option>sol 3</option>
             <option>sol 4</option><option>sol 5</option><option>sol 6</option>
+          </optgroup>
+          <optgroup label="Salon">
+            <option>salon 1</option><option>salon 2</option><option>salon 3</option><option>salon 4</option>
+            <option>salon 5</option><option>salon 6</option><option>salon 7</option><option>salon 8</option>
+          </optgroup>
+          <optgroup label="Loca">
+            <option value="geyikli loca">Geyikli Loca</option>
           </optgroup>
         </select>
       </div>
@@ -600,6 +773,25 @@
     </div>
   </div>
 
+  <!-- Bungalov hesabına menüden ürün ekle -->
+  <div id="bungalov-menu-modal" class="modal hidden">
+    <div class="modal-box edit-order-box">
+      <div class="modal-header"><h3>Menüden Ekle</h3></div>
+      <div class="edit-order-items" id="bmenu-cart"></div>
+      <div class="edit-order-total"><span>Hesaba eklenecek</span><strong id="bmenu-total">₺0</strong></div>
+      <div class="menu-search-row">
+        <input type="text" id="bmenu-search" placeholder="Ürün ara..." oninput="renderBungalovMenuPick()" autocomplete="off" />
+      </div>
+      <div class="menu-pick-list" id="bmenu-pick"></div>
+      <p class="edit-order-note">Ürünler bungalov hesabına yazılır; mutfağa / pizza tezgahına sipariş fişi gider.</p>
+      <div class="printer-status-msg err" id="bmenu-msg" style="padding:0 26px"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeBungalovMenuModal()">Vazgeç</button>
+        <button class="btn primary" onclick="confirmBungalovMenuItems()">Hesaba Ekle</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Bungalov Çıkış -->
   <div id="bungalov-checkout-modal" class="modal hidden">
     <div class="modal-box" style="max-width:380px">
@@ -608,11 +800,16 @@
       <div class="form-row"><label>Çıkış Tarihi</label><input id="bungalov-checkout-date" type="date" /></div>
       <div class="form-row">
         <label>Ödeme Yöntemi</label>
-        <select id="bungalov-checkout-payment">
+        <select id="bungalov-checkout-payment" onchange="toggleCheckoutKarma()">
           <option value="Nakit">💵 Nakit</option>
           <option value="Kredi Kartı">💳 Kredi Kartı</option>
+          <option value="Havale">🏦 Havale</option>
           <option value="Karma">🔀 Karma (Nakit + Kart)</option>
         </select>
+      </div>
+      <div class="form-row hidden" id="bungalov-checkout-karma-row">
+        <label>Nakit Tutarı (kalanı kart)</label>
+        <input id="bungalov-checkout-nakit" type="number" min="0" step="0.01" />
       </div>
       <div class="modal-actions">
         <button class="btn" onclick="closeBungalovCheckoutModal()">İptal</button>

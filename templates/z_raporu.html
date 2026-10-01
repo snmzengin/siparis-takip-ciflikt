@@ -32,6 +32,7 @@
       --c-nakit:    #C0673A;
       --c-kart:     #3E6FB0;
       --c-diger:    #A89F8C;
+      --c-havale:   #C9A227;
       --c-kahvalti: #D9A441;
       --c-aksam:    #2F7A45;
       --c-bar:      #5C8A4A;
@@ -180,7 +181,7 @@
     .card .hint { font-size: 0.8rem; color: var(--ink-3); margin-bottom: 16px; }
 
     /* KPI */
-    .kpis { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .kpis { display: grid; grid-template-columns: 1.35fr 1.25fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
     .kpi .label { font-size: 0.8rem; color: var(--ink-3); font-weight: 500; }
     .kpi .value { font-size: 1.6rem; font-weight: 700; margin-top: 8px; letter-spacing: -0.03em; }
     .kpi .meta { font-size: 0.8rem; color: var(--ink-3); margin-top: 6px; }
@@ -207,7 +208,6 @@
     .bf-head .big { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.03em; }
     .bf-head .big small { font-size: 0.9rem; font-weight: 500; color: var(--ink-3); margin-left: 5px; letter-spacing: 0; }
     .bf-head .amt { font-size: 1.05rem; font-weight: 600; color: var(--ink-2); }
-    #breakfast .fill { background: var(--c-kahvalti); }
 
     /* Sıralı çubuk listesi */
     .rank-list { display: flex; flex-direction: column; gap: 13px; }
@@ -219,6 +219,23 @@
     .rank-row .track { height: 6px; background: var(--track); border-radius: 3px; margin-left: 26px; }
     .rank-row .fill { height: 100%; background: var(--c-bar); border-radius: 3px; min-width: 3px; }
 
+    .drink-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .drink-stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: rgba(33, 28, 18, 0.05); border-radius: 12px; }
+    .drink-stat .label { font-size: 0.8rem; color: var(--ink-2); font-weight: 600; }
+    .drink-stat .value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .drink-stat .meta { font-size: 0.8rem; color: var(--ink-3); }
+    .kasa-rows { display: flex; flex-direction: column; }
+    .float-rows { margin-top: 12px; padding: 10px 14px; background: rgba(33, 28, 18, 0.05); border-radius: 12px; }
+    .float-row { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; padding: 6px 0; }
+    .float-row span { font-weight: 500; }
+    .float-row small { grid-row: 2; color: var(--ink-3); font-size: 0.76rem; }
+    .float-row strong { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1.05rem; }
+    .kasa-row { display: grid; grid-template-columns: 10px 1fr auto; column-gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .kasa-row > span:nth-child(2) { font-weight: 500; }
+    .kasa-row small { grid-column: 2; grid-row: 2; color: var(--ink-3); font-size: 0.78rem; }
+    .kasa-row strong { grid-column: 3; grid-row: 1 / span 2; font-size: 1.15rem; }
+    .kasa-row.total { border-bottom: none; padding-top: 14px; }
+    .kasa-row.total strong { font-size: 1.5rem; color: var(--olive); }
     .empty { color: var(--ink-3); font-size: 0.9rem; text-align: center; padding: 22px 0; }
     .error-banner { background: rgba(180, 67, 47, 0.10); color: var(--down); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 600; font-size: 0.88rem; }
 
@@ -230,6 +247,10 @@
     }
     .toast.err { background: rgba(180, 67, 47, 0.92); }
 
+    @media (max-width: 1080px) {
+      .kpis { grid-template-columns: 1fr 1fr 1fr; }
+      .kpi.hero { grid-column: 1 / -1; }
+    }
     @media (max-width: 860px) {
       .kpis { grid-template-columns: 1fr 1fr; }
       .kpi.hero { grid-column: 1 / -1; }
@@ -335,6 +356,11 @@
 
       <section class="kpis">
         <div class="card kpi hero glass">
+          <div class="label" id="kpi-grand-label">Toplam Kazanç</div>
+          <div class="value num" id="kpi-grand">—</div>
+          <div class="meta" id="kpi-grand-meta">restoran + konaklama</div>
+        </div>
+        <div class="card kpi glass">
           <div class="label" id="kpi-total-label">Toplam Satış</div>
           <div class="value num" id="kpi-total">—</div>
           <div class="meta" id="kpi-delta"></div>
@@ -363,23 +389,42 @@
           <div id="services"></div>
         </div>
         <div class="card glass">
-          <h2>Kahvaltı Satışı</h2>
-          <p class="hint">"Kahvaltı" kategorisindeki ürünler</p>
-          <div id="breakfast"></div>
+          <h2>Konaklama Tahsilatı</h2>
+          <p class="hint">Misafirlerden alınan kalan konaklama ödemeleri</p>
+          <div id="lodging"></div>
         </div>
       </section>
 
       <section class="grid-2">
         <div class="card glass">
           <h2>Nakit / Kart</h2>
-          <p class="hint">Ödeme yöntemine göre satış</p>
+          <p class="hint">Restoran satışlarının ödeme yöntemine göre dağılımı</p>
           <div id="payments"></div>
         </div>
         <div class="card glass">
-          <h2>Garson Bazlı Satış</h2>
-          <p class="hint">Kapanan adisyon tutarına göre</p>
-          <div id="waiters"></div>
+          <h2>Kasa</h2>
+          <p class="hint">Restoran + konaklama · POS ve kasa ile karşılaştırmak için</p>
+          <div id="kasa"></div>
         </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card glass">
+          <h2>Pizza Satışı</h2>
+          <p class="hint">"Pizzalar" kategorisindeki ürünler</p>
+          <div id="pizzas"></div>
+        </div>
+        <div class="card glass">
+          <h2>İçecek Satışı</h2>
+          <p class="hint">Meşrubat ile çay & kahve (şaraplar hariç)</p>
+          <div id="drinks"></div>
+        </div>
+      </section>
+
+      <section class="card glass" style="margin-bottom:12px">
+        <h2>Garson Bazlı Satış</h2>
+        <p class="hint">Kapanan adisyon tutarına göre</p>
+        <div id="waiters"></div>
       </section>
 
       <section class="card glass">
@@ -485,7 +530,8 @@ function periodLabel(r) {
 
 const PREV_WORD = { daily: "önceki güne", weekly: "önceki haftaya", monthly: "önceki aya" };
 const PREV_NONE = { daily: "Önceki gün satış yoktu", weekly: "Önceki hafta satış yoktu", monthly: "Önceki ay satış yoktu" };
-const TOTAL_LABEL = { daily: "Günlük Satış", weekly: "Haftalık Satış", monthly: "Aylık Satış" };
+const TOTAL_LABEL = { daily: "Restoran Satışı", weekly: "Restoran Satışı", monthly: "Restoran Satışı" };
+const GRAND_LABEL = { daily: "Günlük Toplam Kazanç", weekly: "Haftalık Toplam Kazanç", monthly: "Aylık Toplam Kazanç" };
 
 /* ── VERİ ─────────────────────────────────────────────────── */
 async function load() {
@@ -507,7 +553,11 @@ function render(r) {
   document.getElementById("updated").textContent =
     "Güncellendi " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 
-  // KPI
+  // KPI — en başta restoran + konaklama toplamı
+  document.getElementById("kpi-grand-label").textContent = GRAND_LABEL[period];
+  document.getElementById("kpi-grand").textContent = tl(r.total_amount + r.lodging_total);
+  document.getElementById("kpi-grand-meta").textContent =
+    `restoran ${tl(r.total_amount)} + konaklama ${tl(r.lodging_total)}`;
   document.getElementById("kpi-total-label").textContent = TOTAL_LABEL[period];
   document.getElementById("kpi-total").textContent = tl(r.total_amount);
   const deltaEl = document.getElementById("kpi-delta");
@@ -523,8 +573,11 @@ function render(r) {
   document.getElementById("kpi-active-amt").textContent = r.active_count ? `${tl(r.active_amount)} bekleyen hesap` : "açık masa yok";
 
   renderPayments(r);
+  renderLodging(r);
+  renderKasa(r);
   renderServices(r);
-  renderBreakfast(r);
+  renderPizzas(r);
+  renderDrinks(r);
   renderRank("waiters", r.waiters.map(w => ({
     name: w.waiter, value: w.total_amount, label: tl(w.total_amount), sub: `${w.order_count} adisyon`,
   })), "Bu dönemde kapanan adisyon yok");
@@ -542,25 +595,88 @@ function renderPayments(r) {
   renderSplit("payments", parts, r.total_amount);
 }
 
+// Not: bu dosya Jinja şablonu; JS içinde iki süslü parantez yan yana gelmemeli (şablon komutu sanılır)
+const PAY_COLOR = { "Nakit": "var(--c-nakit)", "Havale": "var(--c-havale)" };
+const PAY_SHORT = { "Nakit": "Nakit", "Havale": "Havale" };
+
+function renderLodging(r) {
+  const el = document.getElementById("lodging");
+  if (!r.lodging_payments.length) { el.innerHTML = `<div class="empty">Bu dönemde konaklama tahsilatı yok</div>`; return; }
+  el.innerHTML = `
+    <div class="bf-head"><span class="big num">${tl(r.lodging_total)}</span><span class="amt">${r.lodging_payments.length} tahsilat</span></div>
+    <div class="legend">
+      ${r.lodging_payments.map(p => `
+        <div class="legend-row">
+          <span class="swatch" style="background:${PAY_COLOR[p.payment_method] || "var(--c-kart)"}"></span>
+          <span class="name">${esc(p.unit)}${p.guest_name ? `<small>${esc(p.guest_name)}</small>` : ""}</span>
+          <span class="amt num">${tl(p.amount)}</span>
+          <span class="pct">${PAY_SHORT[p.payment_method] || "Kart"}</span>
+        </div>`).join("")}
+    </div>`;
+}
+
+function renderKasa(r) {
+  const total = r.kasa_nakit + r.kasa_kart + r.kasa_havale;
+  document.getElementById("kasa").innerHTML = `
+    <div class="kasa-rows">
+      <div class="kasa-row"><span class="swatch" style="background:var(--c-nakit)"></span><span>Nakit</span>
+        <small>restoran ${tl(r.nakit_total)} + konaklama ${tl(r.lodging_nakit)}</small><strong class="num">${tl(r.kasa_nakit)}</strong></div>
+      <div class="kasa-row"><span class="swatch" style="background:var(--c-kart)"></span><span>Kredi Kartı (POS)</span>
+        <small>restoran ${tl(r.kart_total)} + konaklama ${tl(r.lodging_kart)}</small><strong class="num">${tl(r.kasa_kart)}</strong></div>
+      ${r.kasa_havale ? `<div class="kasa-row"><span class="swatch" style="background:var(--c-havale)"></span><span>Havale (banka)</span>
+        <small>konaklama tahsilatı</small><strong class="num">${tl(r.kasa_havale)}</strong></div>` : ""}
+      <div class="kasa-row total"><span></span><span>Toplam</span><small></small><strong class="num">${tl(total)}</strong></div>
+    </div>
+    <div class="float-rows">
+      <div class="float-row"><span>Açılış kasası</span><small>önceki günden devreden</small>
+        <strong class="num">${r.float_opening === null ? "girilmedi" : tl(r.float_opening)}</strong></div>
+      <div class="float-row"><span>Kasada bırakılan</span><small>yarına devreden</small>
+        <strong class="num">${r.float_closing === null ? "girilmedi" : tl(r.float_closing)}</strong></div>
+    </div>`;
+}
+
+function renderPizzas(r) {
+  const el = document.getElementById("pizzas");
+  if (!r.pizza_qty) { el.innerHTML = `<div class="empty">Bu dönemde pizza satılmadı</div>`; return; }
+  el.innerHTML = `
+    <div class="bf-head">
+      <span class="big num">${r.pizza_qty}<small>pizza</small></span>
+      <span class="amt num">${tl(r.pizza_total)}</span>
+    </div>
+    <div id="pizza-items"></div>`;
+  renderRank("pizza-items", r.pizza_items.map(i => ({
+    name: i.item_name, value: i.total_qty, label: `${i.total_qty} adet`, sub: tl(i.total_amount),
+  })), "");
+}
+
+function renderDrinks(r) {
+  const el = document.getElementById("drinks");
+  if (!r.mesrubat_qty && !r.sicak_qty) { el.innerHTML = `<div class="empty">Bu dönemde içecek satılmadı</div>`; return; }
+  el.innerHTML = `
+    <div class="drink-stats">
+      <div class="drink-stat">
+        <span class="label">Meşrubat</span>
+        <span class="value num">${tl(r.mesrubat_total)}</span>
+        <span class="meta num">${r.mesrubat_qty} adet</span>
+      </div>
+      <div class="drink-stat">
+        <span class="label">Çay & Kahve</span>
+        <span class="value num">${tl(r.sicak_total)}</span>
+        <span class="meta num">${r.sicak_qty} adet</span>
+      </div>
+    </div>
+    <div id="drink-items"></div>`;
+  const rows = [...r.mesrubat_items, ...r.sicak_items].sort((a, b) => b.total_qty - a.total_qty);
+  renderRank("drink-items", rows.map(i => ({
+    name: i.item_name, value: i.total_qty, label: `${i.total_qty} adet`, sub: tl(i.total_amount),
+  })), "");
+}
+
 function renderServices(r) {
   renderSplit("services", [
     { name: "Kahvaltı", sub: r.breakfast_qty ? `${r.breakfast_qty} porsiyon` : "", value: r.breakfast_total, color: "var(--c-kahvalti)" },
     { name: "Akşam Yemeği", value: r.dinner_total, color: "var(--c-aksam)" },
   ], r.breakfast_total + r.dinner_total);
-}
-
-function renderBreakfast(r) {
-  const el = document.getElementById("breakfast");
-  if (!r.breakfast_qty) { el.innerHTML = `<div class="empty">Bu dönemde kahvaltı satılmadı</div>`; return; }
-  el.innerHTML = `
-    <div class="bf-head">
-      <span class="big num">${r.breakfast_qty}<small>porsiyon</small></span>
-      <span class="amt num">${tl(r.breakfast_total)}</span>
-    </div>
-    <div id="breakfast-items"></div>`;
-  renderRank("breakfast-items", r.breakfast_items.map(i => ({
-    name: i.item_name, value: i.total_qty, label: `${i.total_qty} porsiyon`, sub: tl(i.total_amount),
-  })), "");
 }
 
 function renderSplit(id, parts, total) {
