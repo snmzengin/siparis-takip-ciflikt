@@ -76,10 +76,11 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
         <span>Fiş Yazıcıları</span>
       </button>
-      <button class="nav-item" data-tab="owners">
+      <!-- Z Raporu şifreyle açılır; hesaplar da yalnızca oradan (giriş yapınca) yönetilir -->
+      <a class="nav-item" href="/z-raporu" target="_blank" rel="noopener" style="text-decoration:none">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-        <span>Z Raporu Hesapları</span>
-      </button>
+        <span>Z Raporu ↗</span>
+      </a>
     </nav>
 
     <div class="sidebar-order-btn">
@@ -482,34 +483,6 @@
           <thead><tr><th>Tarih</th><th>Kasada Bırakılan</th><th>Not</th><th></th></tr></thead>
           <tbody id="float-tbody"></tbody>
         </table>
-      </div>
-    </section>
-
-    <!-- ═══ Z RAPORU HESAPLARI ═══════════════════════════════════════ -->
-    <section id="tab-owners" class="tab">
-      <div class="page-header">
-        <div>
-          <h2>Z Raporu Hesapları</h2>
-          <p class="page-sub">Satış özetinin görüldüğü Z Raporu ekranının kullanıcı adı ve şifreleri</p>
-        </div>
-        <a class="btn primary" href="/z-raporu" target="_blank" style="text-decoration:none">Z Raporunu Aç ↗</a>
-      </div>
-
-      <div class="printer-settings">
-        <div class="form-row">
-          <label>Yeni hesap</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input id="owner-new-name" type="text" placeholder="Ad (örn: Ahmet)" autocomplete="off" style="flex:1;min-width:120px" />
-            <input id="owner-new-user" type="text" placeholder="Kullanıcı adı" autocomplete="off" style="flex:1;min-width:140px" />
-            <input id="owner-new-pass" type="password" placeholder="Şifre (en az 6 karakter)" autocomplete="new-password" style="flex:1;min-width:140px" />
-            <button class="btn primary" onclick="addOwner()">Ekle</button>
-          </div>
-        </div>
-        <div id="owner-status-msg" class="printer-status-msg"></div>
-
-        <div id="owners-list" class="owners-list"></div>
-
-        <p class="page-sub" style="margin-top:18px">Z Raporu adresi: <code id="owner-url"></code> — telefondan aynı Wi-Fi'dayken açılır.</p>
       </div>
     </section>
 

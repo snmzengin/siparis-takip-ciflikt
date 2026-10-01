@@ -35,14 +35,13 @@ const TAB_NAMES = {
   expenses:    "Giderler",
   waiters:     "Garsonlar",
   printers:    "Fiş Yazıcıları",
-  owners:      "Z Raporu Hesapları",
   lodging:     "Konaklama Ödemeleri",
   cashfloat:   "Kasa Devri",
 };
 
 /* ── INIT ────────────────────────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".nav-item").forEach(btn => {
+  document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {  // Z Raporu ↗ bir bağlantı, sekme değil
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
   document.querySelectorAll(".filter-btn").forEach(btn => {
@@ -91,7 +90,6 @@ function switchTab(tab) {
   if (tab === "stays")       { loadStays(); loadBungalov().then(renderStays); }
   if (tab === "waiters")    loadWaiters();
   if (tab === "printers")    loadPrinterSettings();
-  if (tab === "owners")      loadOwners();
   if (tab === "lodging")     loadLodgingPayments();
   if (tab === "cashfloat")   loadCashFloats();
   if (tab === "ingredients") loadIngredients();
@@ -1727,6 +1725,7 @@ function renderStays() {
 
   const navCount = document.getElementById("stays-nav-count");
   navCount.textContent = arrivals.length + departures.length;
+  navCount.title = `Bugün ${arrivals.length} giriş · ${departures.length} çıkış`;
   navCount.classList.toggle("hidden", !(arrivals.length + departures.length));
 
   document.getElementById("stays-summary").innerHTML = `
@@ -2068,68 +2067,6 @@ function copyAgentToken() {
   const msg = document.getElementById("printer-status-msg");
   msg.textContent = "✓ Token kopyalandı";
   msg.className = "printer-status-msg ok";
-}
-
-/* ── Z RAPORU HESAPLARI ────────────────────────────────────────────────────── */
-function ownerMsg(text, ok) {
-  const msg = document.getElementById("owner-status-msg");
-  msg.textContent = text;
-  msg.className = "printer-status-msg " + (ok ? "ok" : "err");
-}
-
-async function loadOwners() {
-  const owners = await api("/api/owners");
-  document.getElementById("owner-url").textContent = `${location.protocol}//${location.host}/z-raporu`;
-  const list = document.getElementById("owners-list");
-  if (!owners.length) {
-    list.innerHTML = `<p class="page-sub" style="margin-top:14px">Henüz hesap yok. Yukarıdan ilk Z Raporu hesabını oluştur.</p>`;
-    return;
-  }
-  list.innerHTML = owners.map(o => `
-    <div class="owner-row">
-      <div class="owner-name">${esc(o.display_name || o.username)}<small>@${esc(o.username)}</small></div>
-      <input type="text" id="owner-name-${o.id}" value="${esc(o.display_name || "")}" placeholder="Ad" autocomplete="off" />
-      <input type="password" id="owner-pass-${o.id}" placeholder="Yeni şifre (isteğe bağlı)" autocomplete="new-password" />
-      <button class="btn" onclick="changeOwnerPass(${o.id})">Kaydet</button>
-      <button class="btn danger" onclick="deleteOwner(${o.id}, this)">Sil</button>
-    </div>`).join("");
-}
-
-async function addOwner() {
-  const display_name = document.getElementById("owner-new-name").value.trim();
-  const username = document.getElementById("owner-new-user").value.trim();
-  const password = document.getElementById("owner-new-pass").value;
-  const res = await api("/api/owners", { method: "POST", body: JSON.stringify({ username, password, display_name }) });
-  if (res.error) return ownerMsg(res.error, false);
-  document.getElementById("owner-new-name").value = "";
-  document.getElementById("owner-new-user").value = "";
-  document.getElementById("owner-new-pass").value = "";
-  ownerMsg(`"${username}" hesabı oluşturuldu ✓`, true);
-  loadOwners();
-}
-
-async function changeOwnerPass(id) {
-  const input = document.getElementById(`owner-pass-${id}`);
-  const display_name = document.getElementById(`owner-name-${id}`).value.trim();
-  const res = await api(`/api/owners/${id}`, { method: "PUT", body: JSON.stringify({ password: input.value, display_name }) });
-  if (res.error) return ownerMsg(res.error, false);
-  const passChanged = !!input.value;
-  input.value = "";
-  ownerMsg(passChanged ? "Ad ve şifre güncellendi ✓" : "Kaydedildi ✓", true);
-  loadOwners();
-}
-
-async function deleteOwner(id, btn) {
-  // Tarayıcı onay penceresi yerine iki adımlı buton: ilk tık onay ister
-  if (btn.dataset.confirm !== "1") {
-    btn.dataset.confirm = "1";
-    btn.textContent = "Emin misin?";
-    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Sil"; }, 3000);
-    return;
-  }
-  await api(`/api/owners/${id}`, { method: "DELETE" });
-  ownerMsg("Hesap silindi", true);
-  loadOwners();
 }
 
 /* ── KONAKLAMA ÖDEMELERİ ─────────────────────────────────────────────────── */

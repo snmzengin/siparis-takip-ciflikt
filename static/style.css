@@ -703,29 +703,11 @@ body::before {
 }
 .printer-settings > .btn,
 .printer-settings > .printer-status-msg,
-.printer-settings > .owners-list,
 .printer-settings > p { margin-left: 24px; margin-right: 24px; }
 .printer-settings .form-row { margin-bottom: 18px; padding-left: 24px; padding-right: 24px; }
 .printer-status-msg { margin-top: 10px; font-size: 0.86rem; font-weight: 600; min-height: 1.2em; }
 .printer-status-msg.ok  { color: var(--accent); }
 .printer-status-msg.err { color: var(--danger); }
-
-.owners-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-.owner-row {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.55);
-}
-.owner-row .owner-name { flex: 1; min-width: 140px; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
-.owner-row .owner-name small { color: var(--ink-3); font-weight: 500; font-size: 0.78rem; }
-.owner-row input {
-  flex: 1; min-width: 120px; padding: 8px 12px;
-  border: 1px solid var(--line-2); border-radius: 9px; font-size: 0.88rem;
-  background: rgba(255, 255, 255, 0.8); color: var(--ink); font-family: inherit;
-}
-.owner-row input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 164, 65, 0.2); }
 
 .agent-token-box {
   margin: 22px 24px 0;
@@ -1561,7 +1543,7 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
   .payment-opt { flex-direction: row; justify-content: center; padding: 14px; }
   .printer-settings .form-row { padding-left: 18px; padding-right: 18px; }
   .printer-settings > .btn, .printer-settings > .printer-status-msg,
-  .printer-settings > .owners-list, .printer-settings > p, .agent-token-box { margin-left: 18px; margin-right: 18px; }
+  .printer-settings > p, .agent-token-box { margin-left: 18px; margin-right: 18px; }
 }
 
 /* ── HIDDEN ─────────────────────────────────────────────────────────────── */

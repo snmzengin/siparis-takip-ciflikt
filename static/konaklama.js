@@ -6,13 +6,17 @@
 function konaklamaMoney(s) {
   if (s._money) return s._money;
   const txt = `${s.paid} ${s.balance}`.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+  let malformed = false;
   const num = word => {
     const m = txt.match(new RegExp(`(\\d[\\d.,]*)\\s*(?:₺|tl)?\\s*${word}`));
-    return m ? parseFloat(m[1].replace(/\./g, "").replace(",", ".")) || 0 : null;
+    if (!m) return null;
+    // Binlik gruplar üçer hane olmalı: "16.0000" gibi yazım hatası işaretlenir (yine de okunur)
+    if (!/^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+(,\d+)?$/.test(m[1].replace(/[.,]$/, ""))) malformed = true;
+    return parseFloat(m[1].replace(/\./g, "").replace(",", ".")) || 0;
   };
   let prepaid = num("ödendi"), due = num("kap[ıi]da"), total = num("toplam");
   // Üçü de yazılıysa tablonun kendi içinde tutması gerekir (örn. 15.000 + 18.000 ≠ 38.000)
-  const mismatch = total != null && prepaid != null && due != null && Math.abs(total - prepaid - due) >= 1;
+  const mismatch = malformed || (total != null && prepaid != null && due != null && Math.abs(total - prepaid - due) >= 1);
   if (due == null && s.fully_paid) due = 0;
   if (total == null && (prepaid != null || due != null)) total = (prepaid || 0) + (due || 0);
   if (due == null && total != null && prepaid != null) due = Math.max(total - prepaid, 0);

@@ -239,6 +239,50 @@
     .empty { color: var(--ink-3); font-size: 0.9rem; text-align: center; padding: 22px 0; }
     .error-banner { background: rgba(180, 67, 47, 0.10); color: var(--down); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 600; font-size: 0.88rem; }
 
+    /* Hesaplar */
+    .accounts { margin-bottom: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .accounts[hidden] { display: none; }
+    .rm-label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .rm-input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 0.92rem;
+      background: rgba(255, 255, 255, 0.85); color: var(--ink); font-family: inherit;
+    }
+    .rm-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 164, 65, 0.2); }
+    .rm-kinds { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .rm-kinds label {
+      display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.6); font-size: 0.88rem; font-weight: 500;
+    }
+    .rm-kinds input { accent-color: var(--accent); width: 16px; height: 16px; }
+    .rm-adv { margin-top: 10px; font-size: 0.84rem; color: var(--ink-2); }
+    .rm-adv summary { cursor: pointer; }
+    .rm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .rm-period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.55); }
+    .rm-period .acc-name small.err { color: var(--down); }
+    .rm-period .acc-name small.ok { color: var(--up); }
+    .card a { color: var(--accent); }
+    .acc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .acc-list { display: flex; flex-direction: column; gap: 8px; }
+    .acc-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.55);
+    }
+    .acc-name { flex: 1; min-width: 140px; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
+    .acc-name small { color: var(--ink-3); font-weight: 500; font-size: 0.78rem; }
+    .acc-me { color: var(--accent); font-size: 0.74rem; font-weight: 700; margin-left: 6px; }
+    .acc-row input, .acc-form input {
+      flex: 1; min-width: 120px; padding: 9px 12px;
+      border: 1px solid var(--line-2); border-radius: 10px; font-size: 0.9rem;
+      background: rgba(255, 255, 255, 0.85); color: var(--ink); font-family: inherit;
+    }
+    .acc-row input:focus, .acc-form input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 164, 65, 0.2); }
+    .acc-sub { font-size: 0.9rem; margin: 18px 0 8px; }
+    .acc-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .acc-msg { font-size: 0.86rem; font-weight: 600; min-height: 1.3em; margin-top: 10px; }
+    .acc-msg.ok { color: var(--up); }
+    .acc-msg.err { color: var(--down); }
+    .btn.danger { color: var(--down); }
+
     /* Satış | Konaklama geçişi */
     .view-seg { margin-bottom: 18px; }
     .view-seg button { padding: 8px 22px; font-size: 0.92rem; }
@@ -279,6 +323,7 @@
     }
     @media (max-width: 520px) {
       .topbar .user { display: none; }
+      #accounts-btn { padding: 8px 10px; }
       .greeting h1 { font-size: 1.6rem; }
       .kpi .value { font-size: 1.3rem; }
       .kpi.hero .value { font-size: 2rem; }
@@ -296,7 +341,7 @@
     }
 
     @media print {
-      body::before, .topbar, .controls .seg, .view-seg, .date-nav button, #today-btn, .print-actions, .toast { display: none !important; }
+      body::before, .topbar, .controls .seg, .view-seg, .accounts, .date-nav button, #today-btn, .print-actions, .toast { display: none !important; }
       body, html { background: #fff; }
       .glass { background: #fff; box-shadow: none; border: 1px solid #ddd; -webkit-backdrop-filter: none; backdrop-filter: none; }
       .date-nav { padding: 0; }
@@ -318,7 +363,11 @@
         <p>Sapanca Çiftlik Restoran</p>
       </div>
       <div id="no-owner-note" class="login-note" hidden>
-        Henüz Z Raporu hesabı yok. Ana paneldeki <b>Z Raporu Hesapları</b> bölümünden bir kullanıcı adı ve şifre oluşturun.
+        Henüz Z Raporu hesabı yok. İlk hesabı oluşturun — sonraki hesapları bu hesapla giriş yapıp <b>Hesaplar</b>'dan ekleyebilirsiniz.
+      </div>
+      <div class="field" id="setup-name-field" hidden>
+        <label for="login-name">Adınız</label>
+        <input id="login-name" name="name" autocomplete="name" placeholder="örn: Ahmet" />
       </div>
       <div class="field">
         <label for="login-user">Kullanıcı adı</label>
@@ -343,6 +392,10 @@
           <div class="main">Z Raporu</div>
         </div>
         <span class="user" id="user-name"></span>
+        <button class="btn" id="accounts-btn" onclick="toggleAccounts()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Ayarlar
+        </button>
         <button class="btn" onclick="logout()">Çıkış</button>
       </div>
     </header>
@@ -351,6 +404,63 @@
       <div class="greeting">
         <h1>Hoş geldin, <span id="greet-name"></span></h1>
         <p id="greet-date"></p>
+      </div>
+
+      <!-- ── AYARLAR: hesaplar + rapor maili (yalnızca giriş yapmış patron görür ve değiştirebilir) ── -->
+      <div id="accounts-view" class="accounts" hidden>
+      <section class="card glass">
+        <div class="acc-head">
+          <div>
+            <h2>Z Raporu Hesapları</h2>
+            <p class="hint">Bu ekrana giriş yapabilen kişiler. Hesaplar yalnızca buradan, giriş yapılmışken değiştirilebilir.</p>
+          </div>
+          <button class="btn" onclick="toggleAccounts()">Kapat</button>
+        </div>
+        <div id="acc-list" class="acc-list"></div>
+        <h3 class="acc-sub">Yeni hesap</h3>
+        <div class="acc-form">
+          <input id="acc-new-name" placeholder="Ad (örn: Ahmet)" autocomplete="off" />
+          <input id="acc-new-user" placeholder="Kullanıcı adı" autocomplete="off" autocapitalize="off" />
+          <input id="acc-new-pass" type="password" placeholder="Şifre (en az 6 karakter)" autocomplete="new-password" />
+          <button class="btn primary" onclick="addAccount()">Ekle</button>
+        </div>
+        <div id="acc-msg" class="acc-msg"></div>
+      </section>
+
+      <section class="card glass" id="mail-card">
+        <h2>Rapor Maili</h2>
+        <p class="hint">Seçilen raporlar otomatik gönderilir: haftalık her pazartesi, aylık ayın 1'inde, 6 aylık 1 Ocak ve 1 Temmuz'da, yıllık 1 Ocak'ta — sabah 08:00'den sonra. Satış, gider, konaklama, garson ve ürün bazlı tüm rakamlar mailde olur.</p>
+
+        <label class="rm-label" for="rm-to">Raporların gideceği mail adresi</label>
+        <input id="rm-to" class="rm-input" placeholder="ornek@gmail.com — birden fazlaysa virgülle ayırın" autocomplete="off" autocapitalize="off" />
+        <div class="rm-kinds" id="rm-kinds"></div>
+
+        <h3 class="acc-sub">Gönderen hesap</h3>
+        <p class="hint" style="margin-bottom:10px">Mailleri gönderecek hesap (alıcıyla aynı Gmail olabilir). Gmail'de normal şifre çalışmaz:
+          Google Hesabı › Güvenlik › <b>2 Adımlı Doğrulama</b>'yı açın, sonra
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>
+          adresinden bir <b>uygulama şifresi</b> oluşturup 16 haneli şifreyi aşağıya yapıştırın.</p>
+        <div class="acc-form">
+          <input id="rm-user" placeholder="gonderen@gmail.com" autocomplete="off" autocapitalize="off" />
+          <input id="rm-pass" type="password" placeholder="Uygulama şifresi (16 hane)" autocomplete="new-password" />
+        </div>
+        <details class="rm-adv">
+          <summary>Gmail dışı bir hesap (gelişmiş)</summary>
+          <div class="acc-form" style="margin-top:8px">
+            <input id="rm-host" placeholder="SMTP sunucu (smtp.gmail.com)" autocomplete="off" />
+            <input id="rm-port" placeholder="Port (587)" inputmode="numeric" autocomplete="off" style="max-width:130px" />
+          </div>
+        </details>
+        <div class="rm-actions">
+          <button class="btn primary" onclick="saveReportMail()">Kaydet</button>
+          <button class="btn" onclick="testReportMail(this)">Test maili gönder</button>
+        </div>
+        <div id="rm-msg" class="acc-msg"></div>
+
+        <h3 class="acc-sub">Son raporlar</h3>
+        <p class="hint" style="margin-bottom:8px">Tamamlanan son dönemin raporunu önizleyebilir ya da hemen gönderebilirsiniz.</p>
+        <div id="rm-periods" class="acc-list"></div>
+      </section>
       </div>
 
       <div class="seg view-seg" id="view-seg">
@@ -560,13 +670,20 @@ async function api(path, options = {}) {
 }
 
 /* ── GİRİŞ / ÇIKIŞ ────────────────────────────────────────── */
+let setupMode = false; // hiç hesap yoksa giriş ekranı ilk hesabı oluşturur
+let meUser = null;
+
 async function init() {
   const { data } = await api("/api/patron/me");
   if (data.username) return showDash(data);
-  document.getElementById("no-owner-note").hidden = !!data.has_owner;
+  setupMode = !data.has_owner;
+  document.getElementById("no-owner-note").hidden = !setupMode;
+  document.getElementById("setup-name-field").hidden = !setupMode;
+  document.getElementById("login-btn").textContent = setupMode ? "Hesabı Oluştur" : "Giriş Yap";
+  document.getElementById("login-pass").autocomplete = setupMode ? "new-password" : "current-password";
   document.getElementById("login-view").hidden = false;
   document.getElementById("dash-view").hidden = true;
-  document.getElementById("login-user").focus();
+  document.getElementById(setupMode ? "login-name" : "login-user").focus();
 }
 
 document.getElementById("login-form").addEventListener("submit", async e => {
@@ -574,15 +691,15 @@ document.getElementById("login-form").addEventListener("submit", async e => {
   const btn = document.getElementById("login-btn");
   const err = document.getElementById("login-err");
   btn.disabled = true; err.textContent = "";
-  const { status, data } = await api("/api/patron/login", {
-    method: "POST",
-    body: JSON.stringify({
-      username: document.getElementById("login-user").value.trim(),
-      password: document.getElementById("login-pass").value,
-    }),
-  });
+  const creds = {
+    username: document.getElementById("login-user").value.trim(),
+    password: document.getElementById("login-pass").value,
+  };
+  const { status, data } = setupMode
+    ? await api("/api/owners", { method: "POST", body: JSON.stringify({ ...creds, display_name: document.getElementById("login-name").value.trim() }) })
+    : await api("/api/patron/login", { method: "POST", body: JSON.stringify(creds) });
   btn.disabled = false;
-  if (status === 200 && data.ok) {
+  if ((status === 200 || status === 201) && data.ok) {
     document.getElementById("login-pass").value = "";
     showDash(data);
   } else {
@@ -597,6 +714,8 @@ async function logout() {
 }
 
 function showDash(user) {
+  meUser = user.username;
+  document.getElementById("accounts-view").hidden = true;
   document.getElementById("login-view").hidden = true;
   document.getElementById("dash-view").hidden = false;
   document.getElementById("user-name").textContent = "@" + user.username;
@@ -606,6 +725,153 @@ function showDash(user) {
   refreshView();
   clearInterval(refreshTimer);
   refreshTimer = setInterval(refreshView, 60000);
+}
+
+/* ── HESAPLAR ─────────────────────────────────────────────── */
+// Sunucu her işlemde giriş kontrolü yapar; oturum düşmüşse giriş ekranına dönülür
+function accMsg(text, ok) {
+  const el = document.getElementById("acc-msg");
+  el.textContent = text;
+  el.className = "acc-msg " + (ok ? "ok" : "err");
+}
+
+function toggleAccounts() {
+  const el = document.getElementById("accounts-view");
+  el.hidden = !el.hidden;
+  if (!el.hidden) {
+    accMsg("", true);
+    rmMsg("", true);
+    loadAccounts();
+    loadReportMail();
+    window.scrollTo({ top: 0, behavior: "smooth" }); // bölüm sayfanın en üstünde, sabit üst çubuğun altında kalmasın
+  }
+}
+
+async function loadAccounts() {
+  const { status, data } = await api("/api/owners");
+  if (status === 401) return init();
+  if (status !== 200) return accMsg(data.error || "Hesaplar alınamadı", false);
+  document.getElementById("acc-list").innerHTML = data.map(o => `
+    <div class="acc-row">
+      <div class="acc-name"><span>${esc(o.display_name || o.username)}${o.username === meUser ? `<span class="acc-me">SEN</span>` : ""}</span><small>@${esc(o.username)}</small></div>
+      <input id="acc-name-${o.id}" value="${esc(o.display_name || "")}" placeholder="Ad" autocomplete="off" />
+      <input id="acc-pass-${o.id}" type="password" placeholder="Yeni şifre (isteğe bağlı)" autocomplete="new-password" />
+      <button class="btn" onclick="saveAccount(${o.id})">Kaydet</button>
+      ${data.length > 1 ? `<button class="btn danger" onclick="deleteAccount(${o.id}, this)">Sil</button>` : ""}
+    </div>`).join("");
+}
+
+async function addAccount() {
+  const body = {
+    display_name: document.getElementById("acc-new-name").value.trim(),
+    username: document.getElementById("acc-new-user").value.trim(),
+    password: document.getElementById("acc-new-pass").value,
+  };
+  const { status, data } = await api("/api/owners", { method: "POST", body: JSON.stringify(body) });
+  if (status === 401) return init();
+  if (!data.ok) return accMsg(data.error || "Hesap eklenemedi", false);
+  ["acc-new-name", "acc-new-user", "acc-new-pass"].forEach(id => { document.getElementById(id).value = ""; });
+  accMsg(`"${body.username}" hesabı oluşturuldu ✓`, true);
+  loadAccounts();
+}
+
+async function saveAccount(id) {
+  const pass = document.getElementById(`acc-pass-${id}`);
+  const display_name = document.getElementById(`acc-name-${id}`).value.trim();
+  const { status, data } = await api(`/api/owners/${id}`, { method: "PUT", body: JSON.stringify({ password: pass.value, display_name }) });
+  if (status === 401) return init();
+  if (!data.ok) return accMsg(data.error || "Kaydedilemedi", false);
+  accMsg(pass.value ? "Ad ve şifre güncellendi ✓" : "Kaydedildi ✓", true);
+  pass.value = "";
+  const me = await api("/api/patron/me"); // kendi adını değiştirdiyse karşılama da güncellensin
+  if (me.data.display_name) document.getElementById("greet-name").textContent = me.data.display_name;
+  loadAccounts();
+}
+
+async function deleteAccount(id, btn) {
+  // Tarayıcı onay penceresi yerine iki adımlı buton: ilk tık onay ister
+  if (btn.dataset.confirm !== "1") {
+    btn.dataset.confirm = "1";
+    btn.textContent = "Emin misin?";
+    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Sil"; }, 3000);
+    return;
+  }
+  const { status, data } = await api(`/api/owners/${id}`, { method: "DELETE" });
+  if (status === 401 || data.self_deleted) { clearInterval(refreshTimer); return init(); }
+  if (!data.ok) return accMsg(data.error || "Silinemedi", false);
+  accMsg("Hesap silindi", true);
+  loadAccounts();
+}
+
+/* ── RAPOR MAİLİ ──────────────────────────────────────────── */
+const RM_KINDS = [["weekly", "Haftalık"], ["monthly", "Aylık"], ["half", "6 Aylık"], ["yearly", "Yıllık"]];
+
+function rmMsg(text, ok) {
+  const el = document.getElementById("rm-msg");
+  el.textContent = text;
+  el.className = "acc-msg " + (ok ? "ok" : "err");
+}
+
+async function loadReportMail() {
+  const { status, data } = await api("/api/report-mail");
+  if (status === 401) return init();
+  if (status !== 200) return rmMsg(data.error || "Ayarlar alınamadı", false);
+  document.getElementById("rm-to").value = data.to;
+  document.getElementById("rm-user").value = data.user;
+  document.getElementById("rm-pass").value = "";
+  document.getElementById("rm-pass").placeholder = data.has_password ? "•••• kayıtlı — değiştirmek için yazın" : "Uygulama şifresi (16 hane)";
+  document.getElementById("rm-host").value = data.host === "smtp.gmail.com" ? "" : data.host;
+  document.getElementById("rm-port").value = data.port === 587 ? "" : data.port;
+  document.getElementById("rm-kinds").innerHTML = RM_KINDS.map(([k, name]) =>
+    `<label><input type="checkbox" value="${k}"${data.kinds.includes(k) ? " checked" : ""} /> ${name}</label>`).join("");
+  document.getElementById("rm-periods").innerHTML = data.periods.map(p => {
+    const st = p.status === "sent" ? `<small class="ok">gönderildi · ${esc(p.sent_at.slice(8, 10) + "." + p.sent_at.slice(5, 7) + " " + p.sent_at.slice(11, 16))}</small>`
+             : p.status === "failed" ? `<small class="err">gönderilemedi: ${esc(p.error || "")}</small>`
+             : p.status === "sending" ? `<small>gönderiliyor…</small>`
+             : `<small>henüz gönderilmedi</small>`;
+    return `
+      <div class="rm-period">
+        <div class="acc-name"><span>${esc(p.name)} · ${esc(p.label)}</span>${st}</div>
+        <a class="btn" href="/api/report-mail/preview?kind=${p.kind}" target="_blank" rel="noopener" style="text-decoration:none">Önizle</a>
+        <button class="btn" onclick="sendReportNow('${p.kind}', this)">Şimdi gönder</button>
+      </div>`;
+  }).join("");
+}
+
+async function saveReportMail() {
+  const body = {
+    to: document.getElementById("rm-to").value,
+    user: document.getElementById("rm-user").value.trim(),
+    password: document.getElementById("rm-pass").value,
+    host: document.getElementById("rm-host").value.trim() || "smtp.gmail.com",
+    port: document.getElementById("rm-port").value.trim() || 587,
+    kinds: [...document.querySelectorAll("#rm-kinds input:checked")].map(i => i.value),
+  };
+  const { status, data } = await api("/api/report-mail", { method: "PUT", body: JSON.stringify(body) });
+  if (status === 401) return init();
+  if (!data.ok) return rmMsg(data.error || "Kaydedilemedi", false);
+  await loadReportMail();
+  rmMsg(body.kinds.length ? "Kaydedildi ✓ — seçilen raporlar zamanı gelince otomatik gidecek" : "Kaydedildi ✓ — hiçbir rapor seçili değil, otomatik mail gitmeyecek", true);
+}
+
+async function testReportMail(btn) {
+  btn.disabled = true;
+  rmMsg("Test maili gönderiliyor…", true);
+  const { status, data } = await api("/api/report-mail/test", { method: "POST" });
+  btn.disabled = false;
+  if (status === 401) return init();
+  rmMsg(data.ok ? "Test maili gönderildi ✓ — gelen kutusunu (ve spam klasörünü) kontrol edin" : (data.error || "Gönderilemedi"), !!data.ok);
+}
+
+async function sendReportNow(kind, btn) {
+  btn.disabled = true;
+  btn.textContent = "Gönderiliyor…";
+  const { status, data } = await api("/api/report-mail/send", { method: "POST", body: JSON.stringify({ kind }) });
+  btn.disabled = false;
+  btn.textContent = "Şimdi gönder";
+  if (status === 401) return init();
+  rmMsg(data.ok ? "Rapor gönderildi ✓" : (data.error || "Gönderilemedi"), !!data.ok);
+  loadReportMail();
 }
 
 /* ── SATIŞ | KONAKLAMA ────────────────────────────────────── */

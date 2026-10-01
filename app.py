@@ -323,10 +323,25 @@ def ensure_secret_key():
             "SELECT value FROM settings WHERE key='session_secret'").fetchone()["value"]
 
 
+OWNER_SESSION_DAYS = 30
+
+
+def _owner_login(owner_id):
+    session.permanent = True
+    session["owner_id"] = owner_id
+    session["login_at"] = datetime.utcnow().timestamp()
+
+
 def current_owner_row():
-    """Oturumdaki patronun güncel kaydı — hesap silindiyse None (oturum düşer)."""
+    """Oturumdaki patronun güncel kaydı — hesap silindiyse ya da girişin üzerinden 30 gün geçtiyse
+    None (oturum düşer). Flask çerezin süresini her istekte uzattığı için süre giriş anından sayılır."""
     owner_id = session.get("owner_id")
     if not owner_id:
+        return None
+    login_at = session.get("login_at")
+    if not login_at or datetime.utcnow().timestamp() - login_at > OWNER_SESSION_DAYS * 86400:
+        session.pop("owner_id", None)
+        session.pop("login_at", None)
         return None
     with get_db() as conn:
         return conn.execute("SELECT username, display_name FROM owners WHERE id=?", (owner_id,)).fetchone()
@@ -352,8 +367,7 @@ def patron_login():
                            (username,)).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"ok": False, "error": "Kullanıcı adı veya şifre hatalı"}), 401
-    session.permanent = True
-    session["owner_id"] = row["id"]
+    _owner_login(row["id"])
     return jsonify({"ok": True, "username": row["username"], "display_name": row["display_name"] or row["username"]})
 
 
@@ -392,7 +406,13 @@ def _z_summary(period, date_str):
         period = "daily"
         start = end = d
         prev_start = prev_end = d - dt.timedelta(days=1)
+    report = _summary_for_range(start, end, prev_start, prev_end)
+    report["period"] = period
+    return report
 
+
+def _summary_for_range(start, end, prev_start, prev_end):
+    """Z Raporu'ndaki tüm satış rakamları — herhangi bir tarih aralığı için (rapor maili de kullanır)."""
     report = _report_for_range(start.isoformat(), end.isoformat())
     prev = _report_for_range(prev_start.isoformat(), prev_end.isoformat())
     rng = (start.isoformat(), end.isoformat())
@@ -456,7 +476,6 @@ def _z_summary(period, date_str):
         "breakfast_qty":   sum(i["total_qty"] for i in breakfast_items),
         "breakfast_total": breakfast_total,
         "dinner_total":    round(max(0, items_total - breakfast_total), 2),
-        "period":        period,
         "prev_total":    prev["total_amount"],
         "active_count":  active["cnt"],
         "active_amount": active["amount"],
@@ -605,9 +624,18 @@ def patron_print():
     return jsonify({"ok": True})
 
 
-# Z Raporu hesap yönetimi — ana paneldeki "Z Raporu Hesapları" bölümü kullanır
+# Z Raporu hesap yönetimi — yalnızca Z Raporu'na giriş yapmış patron kullanabilir (Z Raporu › Hesaplar).
+# Ana panel şifresiz olduğu için hesap ekleme/şifre değiştirme oradan kaldırıldı.
+def _owner_required():
+    if not current_owner_row():
+        return jsonify({"error": "Bu işlem için Z Raporu'na giriş yapın"}), 401
+    return None
+
+
 @app.route("/api/owners", methods=["GET"])
 def list_owners():
+    if (denied := _owner_required()):
+        return denied
     with get_db() as conn:
         rows = conn.execute("SELECT id, username, display_name, created_at FROM owners ORDER BY username").fetchall()
     return jsonify([dict(r) for r in rows])
@@ -615,6 +643,11 @@ def list_owners():
 
 @app.route("/api/owners", methods=["POST"])
 def add_owner():
+    with get_db() as conn:
+        first = conn.execute("SELECT 1 FROM owners LIMIT 1").fetchone() is None
+    # İlk hesap (kurulum) Z Raporu giriş ekranından girişsiz açılabilir; sonrakiler için giriş şart
+    if not first and (denied := _owner_required()):
+        return denied
     data = request.json or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
@@ -625,15 +658,19 @@ def add_owner():
         return jsonify({"error": "Şifre en az 6 karakter olmalı"}), 400
     try:
         with get_db() as conn:
-            conn.execute("INSERT INTO owners (username, password_hash, display_name) VALUES (?, ?, ?)",
-                         (username, generate_password_hash(password), display_name))
+            cur = conn.execute("INSERT INTO owners (username, password_hash, display_name) VALUES (?, ?, ?)",
+                               (username, generate_password_hash(password), display_name))
     except sqlite3.IntegrityError:
         return jsonify({"error": "Bu kullanıcı adı zaten var"}), 400
-    return jsonify({"ok": True}), 201
+    if first:  # kurulumu yapan kişi doğrudan giriş yapmış olur
+        _owner_login(cur.lastrowid)
+    return jsonify({"ok": True, "username": username, "display_name": display_name or username}), 201
 
 
 @app.route("/api/owners/<int:owner_id>", methods=["PUT"])
 def update_owner(owner_id):
+    if (denied := _owner_required()):
+        return denied
     data = request.json or {}
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
@@ -658,9 +695,15 @@ def update_owner(owner_id):
 
 @app.route("/api/owners/<int:owner_id>", methods=["DELETE"])
 def delete_owner(owner_id):
+    if (denied := _owner_required()):
+        return denied
     with get_db() as conn:
+        if conn.execute("SELECT COUNT(*) FROM owners").fetchone()[0] <= 1:
+            return jsonify({"error": "Son hesap silinemez — önce yeni bir hesap ekleyin"}), 400
         conn.execute("DELETE FROM owners WHERE id=?", (owner_id,))
-    return jsonify({"ok": True})
+    if session.get("owner_id") == owner_id:  # kendi hesabını sildi
+        session.pop("owner_id", None)
+    return jsonify({"ok": True, "self_deleted": "owner_id" not in session})
 
 
 @app.route("/pizza")
@@ -1681,8 +1724,119 @@ def _merge_stays(nights):
     return out
 
 
-def _load_konaklama():
+def _konaklama_read(sheet_id, tabs, months):
+    """İstenen ay sekmelerini (yıl, ay) paralel okur → (geceler, organizasyonlar). Tabloda olmayan ay atlanır."""
     from concurrent.futures import ThreadPoolExecutor
+    urls = [f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={tabs[k]}"
+            for k in months if k in tabs]
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        texts = list(ex.map(_sheet_get, urls))
+    nights, events = [], []
+    for t in texts:
+        n, e = _parse_konaklama_tab(t)
+        nights += n
+        events += e
+    return nights, events
+
+
+def _stay_money(s):
+    """Ödeme yazısından önden / kapıda / toplam. static/konaklama.js › konaklamaMoney ile AYNI kurallar:
+    "16.000₺ Ödendi" + "16.000₺ Kapıda / 32.000₺ TOPLAM" → 16.000 / 16.000 / 32.000;
+    "TAMAMI ÖDENDİ" ise toplam = önden. Birini değiştirirseniz diğerini de değiştirin."""
+    import re
+    txt = _tr_lower(f"{s['paid']} {s['balance']}")
+    malformed = []
+
+    def num(word):
+        m = re.search(r"(\d[\d.,]*)\s*(?:₺|tl)?\s*" + word, txt)
+        if not m:
+            return None
+        # Binlik gruplar üçer hane olmalı: "16.0000" gibi yazım hatası işaretlenir (yine de okunur)
+        if not re.fullmatch(r"\d{1,3}(\.\d{3})*(,\d+)?|\d+(,\d+)?", m.group(1).rstrip(".,")):
+            malformed.append(m.group(1))
+        try:
+            return float(m.group(1).replace(".", "").replace(",", "."))
+        except ValueError:
+            return 0.0
+
+    prepaid, due, total = num("ödendi"), num("kap[ıi]da"), num("toplam")
+    mismatch = bool(malformed) or (total is not None and prepaid is not None and due is not None
+                                   and abs(total - prepaid - due) >= 1)
+    if due is None and s.get("fully_paid"):
+        due = 0.0
+    if total is None and (prepaid is not None or due is not None):
+        total = (prepaid or 0) + (due or 0)
+    if due is None and total is not None and prepaid is not None:
+        due = max(total - prepaid, 0)
+    if prepaid is None and total is not None and due is not None:
+        prepaid = max(total - due, 0)
+    return {"prepaid": prepaid or 0, "due": due or 0, "total": total or 0, "known": total is not None,
+            "mismatch": mismatch}
+
+
+def _konaklama_range_stats(stays, units, d_from, d_to, today):
+    """Bir tarih aralığının (dahil) konaklama istatistikleri — static/konaklama.js › konaklamaMonthStats'ın
+    aralık hâli. Para: giriş yapılan konaklamalar; doluluk: aralığa düşen geceler."""
+    after = (d_to + timedelta(days=1)).isoformat()
+    first = d_from.isoformat()
+    days = (d_to - d_from).days + 1
+
+    def calc(unit_list):
+        mine = [s for s in stays if s["unit"] in unit_list and s["checkin"] < after and s["checkout"] > first]
+        started = [s for s in mine if s["checkin"] >= first]
+        busy = sum(max(0, (datetime.fromisoformat(min(s["checkout"], after)) -
+                           datetime.fromisoformat(max(s["checkin"], first))).days) for s in mine)
+        money = [(s, _stay_money(s)) for s in started]
+        future = lambda s: s["checkin"] >= today.isoformat()
+        cap = days * len(unit_list)
+        return {
+            "stays": len(started), "nights": sum(s["nights"] for s in started),
+            "busy": busy, "capacity": cap, "occupancy": round(busy * 100 / cap) if cap else 0,
+            "total": sum(m["total"] for _, m in money), "prepaid": sum(m["prepaid"] for _, m in money),
+            "left": sum(m["due"] for s, m in money if future(s)),
+            "door_paid": sum(m["due"] for s, m in money if not future(s)),
+            "unknown": sum(1 for _, m in money if not m["known"]),
+            "suspect": sum(1 for _, m in money if m["mismatch"]),
+            "started": money,
+        }
+
+    out = calc(units)
+    out["houses"] = sorted(({"unit": u, **{k: v for k, v in calc([u]).items() if k != "started"}} for u in units),
+                           key=lambda h: -h["total"])
+    return out
+
+
+def _konaklama_for_period(d_from, d_to, with_list):
+    """Rapor maili için konaklama: dönemin aylarını + bir önceki ayı (sınırdan sarkan girişler için) okur."""
+    sheet_id = _konaklama_sheet_id()
+    if not sheet_id:
+        return {"ok": False, "error": "Konaklama tablosu bağlı değil (panel › Giriş / Çıkış › Tablo Linki)"}
+    try:
+        tabs = _konaklama_tabs(sheet_id)
+        months = []
+        y, m = (d_from.year, d_from.month - 1) if d_from.month > 1 else (d_from.year - 1, 12)
+        while (y, m) <= (d_to.year, d_to.month):
+            months.append((y, m))
+            y, m = (y, m + 1) if m < 12 else (y + 1, 1)
+        nights, _ = _konaklama_read(sheet_id, tabs, months)
+    except Exception as ex:
+        ex = getattr(ex, "reason", None) or ex
+        return {"ok": False, "error": f"Konaklama tablosu okunamadı ({type(ex).__name__})"}
+    stays = _merge_stays(nights)
+    st = _konaklama_range_stats(stays, LODGING_UNITS, d_from, d_to, _tr_today())
+    st["ok"] = True
+    st["stays_all"] = stays  # ay ay döküm için
+    # Dönemin tabloda sekmesi olmayan ayları: o ayların konaklaması 0 değil, bilinmiyor
+    st["missing"] = [f"{TR_MONTHS[mm - 1].capitalize()} {yy}" for yy, mm in months[1:] if (yy, mm) not in tabs]
+    if with_list:
+        fmt = lambda iso: f"{iso[8:10]}.{iso[5:7]}"
+        st["list"] = [{"dates": f"{fmt(s['checkin'])} → {fmt(s['checkout'])}", "unit": s["unit"], "guest": s["guest"],
+                       "nights": s["nights"], "total": m["total"], "known": m["known"], "mismatch": m["mismatch"]}
+                      for s, m in sorted(st["started"], key=lambda p: (p[0]["checkin"], p[0]["unit"]))]
+    return st
+
+
+def _load_konaklama():
     today = _tr_today()
     sheet_id = _konaklama_sheet_id()
     tabs = _konaklama_tabs(sheet_id)
@@ -1697,15 +1851,7 @@ def _load_konaklama():
         months.append((y, m))
         y, m = (y, m + 1) if m < 12 else (y + 1, 1)
     viewable, current = months[1:], months[3]
-    urls = [f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={tabs[k]}"
-            for k in months if k in tabs]
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        texts = list(ex.map(_sheet_get, urls))
-    nights, events = [], []
-    for t in texts:
-        n, e = _parse_konaklama_tab(t)
-        nights += n
-        events += e
+    nights, events = _konaklama_read(sheet_id, tabs, months)
     # Ev Ev görünümü görüntülenebilir aylarda gezilir; sınır ayında başlayıp bitenler gönderilmez
     first_view = f"{viewable[0][0]}-{viewable[0][1]:02d}-01"
     stays = [s for s in _merge_stays(nights) if s["checkout"] > first_view]
@@ -1992,6 +2138,267 @@ def _report_for_range(date_from, date_to):
         "ikram_total":   round(sum(r["total"] or 0 for r in ikram_orders), 2),
         "net_amount":    round(total_amount - (expense_total or 0), 2),
     }
+
+
+# ── RAPOR MAİLİ (haftalık / aylık / 6 aylık / yıllık) ─────────────────────────
+# Ayarlar Z Raporu › Ayarlar'da, yalnızca giriş yapmış patron görür ve değiştirir
+# (ana panel şifresiz; alıcı adresi oradan değiştirilebilseydi raporlar başkasına yönlendirilebilirdi).
+import rapor_mail
+
+REPORT_MAIL_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS report_mail_log (
+        kind TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        status TEXT NOT NULL,          -- sending / sent / failed
+        attempted_at TEXT,
+        sent_at TEXT,
+        error TEXT,
+        manual INTEGER DEFAULT 0,
+        PRIMARY KEY (kind, period_key)
+    );
+"""
+RM_EMAIL_RE = r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$"
+
+
+def _report_db():
+    conn = get_db()
+    conn.executescript(REPORT_MAIL_SCHEMA)
+    return conn
+
+
+def _tr_now():
+    return datetime.utcnow() + timedelta(hours=3)
+
+
+def _rm_cfg():
+    import re
+    kinds = [k for k in (get_setting("report_mail_kinds") or "").split(",") if k in rapor_mail.KINDS]
+    to = [a for a in re.split(r"[\s,;]+", get_setting("report_mail_to") or "") if a]
+    return {
+        "to": to, "kinds": kinds,
+        "user": get_setting("report_mail_user") or "",
+        "password": get_setting("report_mail_pass") or "",
+        "host": get_setting("report_mail_host") or "smtp.gmail.com",
+        "port": int(get_setting("report_mail_port") or 587),
+        "since": get_setting("report_mail_since") or "",
+    }
+
+
+def build_report_data(kind, strict=False):
+    """Tamamlanmış son dönemin tüm rakamları. strict: konaklama tablosu okunamazsa hata ver
+    (otomatik gönderimde eksik rapor yerine sonra tekrar denenir)."""
+    import datetime as dt
+    today = _tr_today()
+    key, start, end = rapor_mail.last_period(kind, today)
+    prev_start, prev_end = rapor_mail.previous_period(kind, start)
+    restaurant = _summary_for_range(start, end, prev_start, prev_end)
+    short = kind in ("weekly", "monthly")
+    rng = (start.isoformat(), end.isoformat())
+    with get_db() as conn:
+        cats = [dict(r) for r in conn.execute(
+            """SELECT category, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total FROM expenses
+               WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY total DESC""", rng)]
+        rows = [dict(r) for r in conn.execute(
+            """SELECT expense_date, vendor, category, description, amount FROM expenses
+               WHERE expense_date BETWEEN ? AND ? ORDER BY expense_date""", rng)] if short else []
+    expenses = {"total": restaurant["expense_total"], "count": sum(c["count"] for c in cats), "categories": cats, "rows": rows}
+
+    lodging = _konaklama_for_period(start, end, with_list=short)
+    if strict and not lodging["ok"] and _konaklama_sheet_id():
+        raise RuntimeError(lodging["error"])
+
+    monthly = None
+    if not short:  # 6 aylık / yıllık: ay ay döküm
+        monthly = []
+        y, m = start.year, start.month
+        while (y, m) <= (end.year, end.month):
+            ms = dt.date(y, m, 1)
+            me = (dt.date(y + 1, 1, 1) if m == 12 else dt.date(y, m + 1, 1)) - dt.timedelta(days=1)
+            rr = _report_for_range(ms.isoformat(), me.isoformat())
+            lt = (_konaklama_range_stats(lodging["stays_all"], LODGING_UNITS, ms, me, today)["total"]
+                  if lodging["ok"] else None)
+            monthly.append({"label": f"{rapor_mail.TR_MONTHS[m - 1]} {y}", "restaurant": rr["total_amount"],
+                            "lodging": lt, "expenses": rr["expense_total"],
+                            "net": rr["total_amount"] + (lt or 0) - rr["expense_total"]})
+            y, m = (y, m + 1) if m < 12 else (y + 1, 1)
+    return {"kind": kind, "key": key, "start": start, "end": end, "restaurant": restaurant,
+            "lodging": lodging, "expenses": expenses, "monthly": monthly,
+            "generated": _tr_now().strftime("%d.%m.%Y %H:%M")}
+
+
+def _send_report(kind, manual=False):
+    cfg = _rm_cfg()
+    if not cfg["to"] or not cfg["user"] or not cfg["password"]:
+        raise RuntimeError("Rapor maili ayarları eksik (alıcı adres, gönderen hesap ve uygulama şifresi gerekli)")
+    d = build_report_data(kind, strict=not manual)
+    subject, html, text = rapor_mail.render_report(d)
+    rapor_mail.send_mail(cfg, cfg["to"], subject, html, text)
+    return d
+
+
+def _rm_log(kind, key, status, error=None, manual=False):
+    now = _tr_now().isoformat(timespec="seconds")
+    with _report_db() as conn:
+        conn.execute(
+            """INSERT INTO report_mail_log (kind, period_key, status, attempted_at, sent_at, error, manual)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(kind, period_key) DO UPDATE SET status=excluded.status, attempted_at=excluded.attempted_at,
+                 sent_at=COALESCE(excluded.sent_at, report_mail_log.sent_at), error=excluded.error, manual=excluded.manual""",
+            (kind, key, status, now, now if status == "sent" else None, error, int(manual)))
+
+
+def _rm_claim(kind, key):
+    """Bu dönemin raporunu gönderme hakkını alır. gunicorn'da birkaç işçi süreci aynı anda bakar;
+    veritabanındaki tek kayıt sayesinde rapor yalnızca bir kez gider. Başarısız / yarım kalan
+    gönderim 30 dk sonra tekrar denenir."""
+    now = _tr_now()
+    with _report_db() as conn:
+        cur = conn.execute("INSERT OR IGNORE INTO report_mail_log (kind, period_key, status, attempted_at) VALUES (?, ?, 'sending', ?)",
+                           (kind, key, now.isoformat(timespec="seconds")))
+        if cur.rowcount:
+            return True
+        cur = conn.execute("""UPDATE report_mail_log SET status='sending', attempted_at=?
+                              WHERE kind=? AND period_key=? AND status != 'sent' AND attempted_at < ?""",
+                           (now.isoformat(timespec="seconds"), kind, key,
+                            (now - timedelta(minutes=30)).isoformat(timespec="seconds")))
+        return cur.rowcount > 0
+
+
+def _send_due_reports():
+    cfg = _rm_cfg()
+    if not (cfg["to"] and cfg["user"] and cfg["password"] and cfg["kinds"]):
+        return
+    now = _tr_now()
+    for kind in cfg["kinds"]:
+        key, start, end = rapor_mail.last_period(kind, now.date())
+        # Ayar açılmadan önce biten dönemler otomatik gönderilmez (ilk kurulumda 4 mail birden yağmasın)
+        if now < rapor_mail.due_at(end) or end.isoformat() < cfg["since"]:
+            continue
+        if not _rm_claim(kind, key):
+            continue
+        try:
+            _send_report(kind)
+            _rm_log(kind, key, "sent")
+        except Exception as ex:
+            _rm_log(kind, key, "failed", str(ex)[:300])
+            app.logger.warning("Rapor maili gönderilemedi (%s %s): %s", kind, key, ex)
+
+
+_report_scheduler_started = False
+
+
+def _start_report_scheduler():
+    """Her süreçte bir arka plan döngüsü: 10 dakikada bir vadesi gelen rapor var mı bakar."""
+    global _report_scheduler_started
+    if _report_scheduler_started:
+        return
+    _report_scheduler_started = True
+
+    def loop():
+        import time
+        time.sleep(30)
+        while True:
+            try:
+                _send_due_reports()
+            except Exception:
+                app.logger.exception("Rapor maili zamanlayıcısı hata verdi")
+            time.sleep(600)
+
+    threading.Thread(target=loop, daemon=True, name="rapor-maili").start()
+
+
+_start_report_scheduler()
+
+
+@app.route("/api/report-mail", methods=["GET"])
+def get_report_mail():
+    if (denied := _owner_required()):
+        return denied
+    cfg = _rm_cfg()
+    today = _tr_today()
+    with _report_db() as conn:
+        log = {(r["kind"], r["period_key"]): dict(r) for r in conn.execute("SELECT * FROM report_mail_log")}
+    periods = []
+    for kind, name in rapor_mail.KINDS.items():
+        key, start, end = rapor_mail.last_period(kind, today)
+        entry = log.get((kind, key)) or {}
+        periods.append({"kind": kind, "name": name, "label": rapor_mail.period_label(start, end),
+                        "status": entry.get("status"), "sent_at": entry.get("sent_at"), "error": entry.get("error")})
+    return jsonify({"to": ", ".join(cfg["to"]), "kinds": cfg["kinds"], "user": cfg["user"],
+                    "has_password": bool(cfg["password"]), "host": cfg["host"], "port": cfg["port"],
+                    "periods": periods})
+
+
+@app.route("/api/report-mail", methods=["PUT"])
+def save_report_mail():
+    import re
+    if (denied := _owner_required()):
+        return denied
+    data = request.json or {}
+    to = [a for a in re.split(r"[\s,;]+", data.get("to") or "") if a]
+    bad = [a for a in to if not re.match(RM_EMAIL_RE, a)]
+    if bad:
+        return jsonify({"error": f"Geçersiz mail adresi: {bad[0]}"}), 400
+    user = (data.get("user") or "").strip()
+    if user and not re.match(RM_EMAIL_RE, user):
+        return jsonify({"error": "Gönderen hesap bir mail adresi olmalı"}), 400
+    kinds = [k for k in (data.get("kinds") or []) if k in rapor_mail.KINDS]
+    try:
+        port = int(data.get("port") or 587)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Port bir sayı olmalı (Gmail için 587)"}), 400
+    set_setting("report_mail_to", ", ".join(to))
+    set_setting("report_mail_kinds", ",".join(kinds))
+    set_setting("report_mail_user", user)
+    set_setting("report_mail_host", (data.get("host") or "smtp.gmail.com").strip())
+    set_setting("report_mail_port", str(port))
+    if data.get("password"):  # boş bırakılırsa kayıtlı şifre korunur
+        set_setting("report_mail_pass", data["password"].replace(" ", ""))  # Gmail şifreyi 4'lü gruplarla gösterir
+    if not get_setting("report_mail_since"):
+        set_setting("report_mail_since", _tr_today().isoformat())
+    return jsonify({"ok": True})
+
+
+@app.route("/api/report-mail/test", methods=["POST"])
+def test_report_mail():
+    if (denied := _owner_required()):
+        return denied
+    cfg = _rm_cfg()
+    if not cfg["to"] or not cfg["user"] or not cfg["password"]:
+        return jsonify({"error": "Önce alıcı adresi, gönderen hesabı ve uygulama şifresini kaydedin"}), 400
+    html = ("<div style=\"font-family:sans-serif;font-size:15px\"><b>Sapanca Çiftlik Restoran</b><br><br>"
+            "Rapor maili ayarları çalışıyor. Seçilen raporlar bu adrese otomatik gönderilecek.</div>")
+    try:
+        rapor_mail.send_mail(cfg, cfg["to"], "Test · Sapanca Çiftlik rapor maili", html,
+                             "Rapor maili ayarları çalışıyor.")
+    except RuntimeError as ex:
+        return jsonify({"error": str(ex)}), 502
+    return jsonify({"ok": True})
+
+
+@app.route("/api/report-mail/send", methods=["POST"])
+def send_report_mail_now():
+    if (denied := _owner_required()):
+        return denied
+    kind = (request.json or {}).get("kind")
+    if kind not in rapor_mail.KINDS:
+        return jsonify({"error": "Geçersiz rapor türü"}), 400
+    try:
+        d = _send_report(kind, manual=True)
+    except RuntimeError as ex:
+        return jsonify({"error": str(ex)}), 502
+    _rm_log(kind, d["key"], "sent", manual=True)  # aynı dönem otomatik olarak bir daha gitmesin
+    return jsonify({"ok": True})
+
+
+@app.route("/api/report-mail/preview")
+def preview_report_mail():
+    if not current_owner_row():
+        return "Bu sayfa için Z Raporu'na giriş yapın", 401
+    kind = request.args.get("kind")
+    if kind not in rapor_mail.KINDS:
+        return "Geçersiz rapor türü", 400
+    return rapor_mail.render_report(build_report_data(kind))[1]
 
 
 if __name__ == "__main__":
