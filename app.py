@@ -37,7 +37,7 @@ def get_db():
 
 def init_db():
     with get_db() as conn:
-        for col, typ in [("payment_method", "TEXT"), ("closed_at", "TIMESTAMP"), ("waiter", "TEXT"), ("discount", "REAL")]:
+        for col, typ in [("payment_method", "TEXT"), ("closed_at", "TIMESTAMP"), ("waiter", "TEXT"), ("discount", "REAL"), ("ikram_note", "TEXT")]:
             try:
                 conn.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
             except Exception:
@@ -535,6 +535,13 @@ def build_z_ticket(r, username):
     if not r["lodging_payments"]:
         body += "Tahsilat yok\n"
     body += _row("Konaklama toplam", _money(r["lodging_total"]))
+    body += section("IKRAM (UCRETSIZ)")
+    for o in r["ikram_orders"]:
+        who = o["table_number"] + (f" {o['ikram_note']}" if o["ikram_note"] else "")
+        body += _row(who, _money(o["total"]))
+    if not r["ikram_orders"]:
+        body += "Ikram yok\n"
+    body += _row(f"Ikram toplam ({r['ikram_count']} adisyon)", _money(r["ikram_total"]))
     body += section("KASA (RESTORAN + KONAKLAMA)")
     body += _row("Nakit", _money(r["kasa_nakit"]))
     body += _row("Kredi Karti", _money(r["kasa_kart"]))
@@ -1160,10 +1167,16 @@ def update_order_status(order_id):
     status = data.get("status")
     payment_method = data.get("payment_method")
     discount = float(data.get("discount") or 0)
-    if status not in ["Aktif", "Ödendi"]:
+    if status not in ["Aktif", "Ödendi", "İkram"]:
         return jsonify({"error": "Geçersiz durum"}), 400
     with get_db() as conn:
-        if status == "Ödendi":
+        if status == "İkram":
+            # Ücret alınmadan kapatılır (patron misafiri); satış/kasa toplamlarına girmez, Z raporunda ayrı görünür
+            note = (data.get("ikram_note") or "").strip() or None
+            conn.execute(
+                "UPDATE orders SET status='İkram', payment_method='İkram', ikram_note=?, closed_at=datetime('now') WHERE id=?",
+                (note, order_id))
+        elif status == "Ödendi":
             if discount > 0:
                 order = conn.execute("SELECT total FROM orders WHERE id=?", (order_id,)).fetchone()
                 new_total = max(0, (order["total"] or 0) - discount)
@@ -1423,7 +1436,7 @@ def checkout_bungalov(account_id):
         total = conn.execute(
             """SELECT COALESCE(SUM(ch.amount), 0) FROM bungalov_charges ch
                LEFT JOIN orders o ON o.id = ch.order_id
-               WHERE ch.account_id=? AND (o.id IS NULL OR o.status != 'Ödendi')""",
+               WHERE ch.account_id=? AND (o.id IS NULL OR o.status NOT IN ('Ödendi', 'İkram'))""",
             (account_id,)
         ).fetchone()[0]
         if payment_method == "Karma":
@@ -1659,6 +1672,12 @@ def _report_for_range(date_from, date_to):
             WHERE DATE(created_at, '+3 hours') BETWEEN ? AND ? AND status = 'Ödendi'
         """, (date_from, date_to)).fetchall()
 
+        ikram_orders = conn.execute("""
+            SELECT table_number, waiter, ikram_note, total, created_at FROM orders
+            WHERE DATE(created_at, '+3 hours') BETWEEN ? AND ? AND status = 'İkram'
+            ORDER BY created_at
+        """, (date_from, date_to)).fetchall()
+
         expense_total = conn.execute(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE expense_date BETWEEN ? AND ?",
             (date_from, date_to)
@@ -1692,6 +1711,9 @@ def _report_for_range(date_from, date_to):
         "nakit_total":   round(nakit_total, 2),
         "kart_total":    round(kart_total, 2),
         "expense_total": round(expense_total or 0, 2),
+        "ikram_orders":  [dict(r) for r in ikram_orders],
+        "ikram_count":   len(ikram_orders),
+        "ikram_total":   round(sum(r["total"] or 0 for r in ikram_orders), 2),
         "net_amount":    round(total_amount - (expense_total or 0), 2),
     }
 

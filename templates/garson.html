@@ -555,6 +555,7 @@
     </div>
     <span class="pin-back" onclick="pinBack()">← Geri dön</span>
   </div>
+  <span class="pin-back hidden" id="pin-cancel" onclick="cancelWaiterSwitch()">Vazgeç — <span id="pin-cancel-name"></span> olarak devam et</span>
 </div>
 
 <header>
@@ -564,14 +565,7 @@
   </div>
   <div class="garson-select-wrap">
     <span class="garson-label">Garson:</span>
-    <select id="garson-select">
-      <option value="">Seç</option>
-      <option>Sami</option>
-      <option>Rahman</option>
-      <option>Engin</option>
-      <option>Bedirhan</option>
-      <option>Sait</option>
-    </select>
+    <select id="garson-select" onchange="requestWaiterSwitch(this.value)"></select>
   </div>
 </header>
 
@@ -674,8 +668,9 @@ let activeOrderId = null;
 let orderMode     = "new";
 
 /* ── PIN ── */
-let pinWaiter = "";
-let pinValue  = "";
+let pinWaiter     = "";
+let pinValue      = "";
+let currentWaiter = "";   // yalnızca doğru PIN girilince değişir
 
 async function initPin() {
   const waiters = await fetch("/api/waiters").then(r => r.json());
@@ -683,6 +678,25 @@ async function initPin() {
   grid.innerHTML = waiters.map(w => `
     <button class="waiter-btn" onclick="selectWaiter('${esc(w.name)}')">${esc(w.name)}</button>
   `).join("");
+  document.getElementById("garson-select").innerHTML =
+    waiters.map(w => `<option value="${esc(w.name)}">${esc(w.name)}</option>`).join("");
+}
+
+// Üstteki listeden başka garsona geçmek o garsonun PIN'ini ister
+function requestWaiterSwitch(name) {
+  document.getElementById("garson-select").value = currentWaiter;
+  if (!name || name === currentWaiter) return;
+  document.getElementById("pin-cancel-name").textContent = currentWaiter;
+  document.getElementById("pin-cancel").classList.remove("hidden");
+  document.getElementById("pin-screen").classList.remove("hidden");
+  selectWaiter(name);
+}
+
+function cancelWaiterSwitch() {
+  pinValue = "";
+  document.getElementById("pin-screen").classList.add("hidden");
+  document.getElementById("pin-cancel").classList.add("hidden");
+  document.getElementById("garson-select").value = currentWaiter;
 }
 
 function selectWaiter(name) {
@@ -726,9 +740,11 @@ async function verifyPin() {
     body:    JSON.stringify({ name: pinWaiter, pin: pinValue }),
   });
   if (res.ok) {
+    currentWaiter = pinWaiter;
     document.getElementById("pin-screen").classList.add("hidden");
-    document.getElementById("garson-select").value = pinWaiter;
-    localStorage.setItem("garson", pinWaiter);
+    document.getElementById("pin-cancel").classList.add("hidden");
+    document.getElementById("garson-select").value = currentWaiter;
+    showToast(`Garson: ${currentWaiter}`);
   } else {
     document.getElementById("pin-error").textContent = "Hatalı PIN, tekrar deneyin";
     pinValue = "";
@@ -800,13 +816,6 @@ async function init() {
   renderItems();
   renderBungalovSelect();
   updateCartBar();
-
-  // Garson seçimini localStorage'dan geri yükle
-  const saved = localStorage.getItem("garson");
-  if (saved) document.getElementById("garson-select").value = saved;
-  document.getElementById("garson-select").addEventListener("change", e => {
-    localStorage.setItem("garson", e.target.value);
-  });
 }
 
 function renderCategories() {
@@ -935,7 +944,7 @@ function renderBungalovSelect() {
 
 async function submitOrder() {
   const table   = document.getElementById("table-select").value;
-  const waiter  = document.getElementById("garson-select").value;
+  const waiter  = currentWaiter;
   const notes   = document.getElementById("notes-input").value.trim();
   const bungalov_no = document.getElementById("bungalov-select").value || null;
   const entries = Object.entries(cart);

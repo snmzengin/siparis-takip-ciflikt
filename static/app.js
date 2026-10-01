@@ -452,12 +452,13 @@ function tableClick(tableName) {
 function openTableModal(order) {
   document.getElementById("table-modal-title").textContent = `Masa: ${order.table_number}`;
   const time    = new Date(order.created_at + "Z").toLocaleString("tr-TR");
-  const isPaid  = order.status === "Ödendi";
+  const isPaid  = order.status !== "Aktif";
+  const isIkram = order.status === "İkram";
 
   document.getElementById("table-modal-content").innerHTML = `
     <div class="table-detail-meta">
       <span class="order-time">${time}</span>
-      <span class="status-badge ${isPaid ? "badge-odendi" : "badge-aktif"}">${esc(order.status)}</span>
+      <span class="status-badge ${isIkram ? "badge-ikram" : isPaid ? "badge-odendi" : "badge-aktif"}">${esc(order.status)}</span>
     </div>
     ${order.waiter ? `<div class="order-waiter-row">👤 ${esc(order.waiter)}</div>` : ""}
     ${timingHtml(order)}
@@ -469,7 +470,9 @@ function openTableModal(order) {
     ${!isPaid ? `
     <div class="table-status-actions">
       <button class="btn odendi-btn full-width" onclick="closeTableModal(); openPaymentModal(${order.id})">✓ Ödendi olarak işaretle</button>
-    </div>` : `<div class="paid-method-tag">${paymentLabel(order.payment_method)} ile ödendi</div>`}
+    </div>` : isIkram
+      ? `<div class="paid-method-tag">🎁 İkram — ücret alınmadı${order.ikram_note ? ` (${esc(order.ikram_note)})` : ""}</div>`
+      : `<div class="paid-method-tag">${paymentLabel(order.payment_method)} ile ödendi</div>`}
   `;
 
   document.getElementById("table-modal-delete-btn").onclick = () => tableModalDelete(order.id);
@@ -516,7 +519,7 @@ function renderOrders() {
   const list     = document.getElementById("orders-list");
   const filtered = activeFilter === "all"
     ? orders
-    : orders.filter(o => o.status === activeFilter);
+    : orders.filter(o => o.status === activeFilter || (activeFilter === "Ödendi" && o.status === "İkram"));
 
   // Tarih seçici yalnızca ödenenler/tümü görünümünde; seçilen günün tahsilat özeti
   const showDate = activeFilter !== "Aktif";
@@ -530,13 +533,15 @@ function renderOrders() {
     const kart  = sum(paid.filter(o => o.payment_method === "Kredi Kartı"));
     const fmt   = n => "₺" + n.toLocaleString("tr-TR");
     const other = sum(paid) - nakit - kart;
+    const ikram = orders.filter(o => o.status === "İkram");
     document.getElementById("orders-today-btn").classList.toggle("is-today", !ordersDate);
     document.getElementById("orders-day-summary").innerHTML = `
       <span class="sum-chip"><b>${paid.length}</b> ödenen sipariş</span>
       <span class="sum-chip total">Toplam <b>${fmt(sum(paid))}</b></span>
       <span class="sum-chip"><span class="dot nakit"></span>Nakit <b>${fmt(nakit)}</b></span>
       <span class="sum-chip"><span class="dot kart"></span>Kart <b>${fmt(kart)}</b></span>
-      ${other > 0 ? `<span class="sum-chip">Diğer <b>${fmt(other)}</b></span>` : ""}`;
+      ${other > 0 ? `<span class="sum-chip">Diğer <b>${fmt(other)}</b></span>` : ""}
+      ${ikram.length ? `<span class="sum-chip">🎁 İkram <b>${ikram.length}</b> · ${fmt(sum(ikram))}</span>` : ""}`;
   }
 
   if (!filtered.length) {
@@ -545,10 +550,11 @@ function renderOrders() {
   }
 
   list.innerHTML = filtered.map(order => {
-    const isPaid = order.status === "Ödendi";
+    const isPaid  = order.status !== "Aktif";
+    const isIkram = order.status === "İkram";
     const time   = new Date(order.created_at + "Z").toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
     return `
-      <div class="order-card ${isPaid ? "paid" : "active"}">
+      <div class="order-card ${isPaid ? "paid" : "active"} ${isIkram ? "ikram" : ""}">
         <div class="order-card-header">
           <div class="order-table-badge">${esc(order.table_number)}</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -566,6 +572,8 @@ function renderOrders() {
           <div class="order-actions">
             ${!isPaid
               ? `<button class="btn odendi-btn" onclick="openPaymentModal(${order.id})">✓ Ödendi</button>`
+              : isIkram
+              ? `<span class="ikram-label">🎁 İkram — ücret alınmadı${order.ikram_note ? `<small>${esc(order.ikram_note)}</small>` : ""}</span>`
               : `<span class="paid-label">${paymentLabel(order.payment_method)}</span>
                  <button class="btn sm" onclick="openEditPaymentModal(${order.id})">Ödemeyi Düzenle</button>`
             }
@@ -629,6 +637,7 @@ function openPaymentModal(orderId) {
   document.getElementById("split-cash").value = "";
   document.getElementById("split-card").value = "";
   document.getElementById("discount-input").value = "";
+  hideIkramForm();
   document.getElementById("payment-final-total").textContent = `₺${pendingPaymentTotal.toLocaleString("tr-TR")}`;
   // Bu masada yarım kalmış bir bölme varsa kaldığı yerden devam et
   split = loadSplit(orderId);
@@ -834,6 +843,37 @@ async function confirmPayment(method) {
     method: "PUT",
     body: JSON.stringify({ status: "Ödendi", payment_method: method, discount }),
   });
+  pendingPaymentOrderId = null;
+  closePaymentModal();
+  loadOrders();
+}
+
+/* ── İKRAM (işletme sahibinin misafiri — ücret alınmaz) ── */
+function showIkramForm() {
+  document.getElementById("ikram-note").value = "";
+  document.getElementById("payment-options").classList.add("hidden");
+  document.querySelector("#payment-modal .discount-row").classList.add("hidden");
+  document.getElementById("payment-subtitle").classList.add("hidden");
+  document.getElementById("ikram-form").classList.remove("hidden");
+  document.getElementById("ikram-note").focus();
+}
+
+function hideIkramForm() {
+  document.getElementById("ikram-form").classList.add("hidden");
+  document.getElementById("payment-options").classList.remove("hidden");
+  document.querySelector("#payment-modal .discount-row").classList.remove("hidden");
+  document.getElementById("payment-subtitle").classList.remove("hidden");
+}
+
+async function confirmIkram() {
+  if (!pendingPaymentOrderId) return;
+  const ikram_note = document.getElementById("ikram-note").value.trim();
+  const res = await api(`/api/orders/${pendingPaymentOrderId}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status: "İkram", ikram_note }),
+  });
+  if (res && res.error) return alert(res.error);
+  try { localStorage.removeItem(`split-${pendingPaymentOrderId}`); } catch (e) {}
   pendingPaymentOrderId = null;
   closePaymentModal();
   loadOrders();

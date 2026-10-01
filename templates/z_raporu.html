@@ -422,6 +422,12 @@
       </section>
 
       <section class="card glass" style="margin-bottom:12px">
+        <h2>İkram (Ücret Alınmayan)</h2>
+        <p class="hint">İşletme sahiplerinin misafirleri — satışa ve kasaya dahil değil, menü fiyatıyla değeri</p>
+        <div id="ikram"></div>
+      </section>
+
+      <section class="card glass" style="margin-bottom:12px">
         <h2>Garson Bazlı Satış</h2>
         <p class="hint">Kapanan adisyon tutarına göre</p>
         <div id="waiters"></div>
@@ -574,6 +580,7 @@ function render(r) {
 
   renderPayments(r);
   renderLodging(r);
+  renderIkram(r);
   renderKasa(r);
   renderServices(r);
   renderPizzas(r);
@@ -611,6 +618,22 @@ function renderLodging(r) {
           <span class="name">${esc(p.unit)}${p.guest_name ? `<small>${esc(p.guest_name)}</small>` : ""}</span>
           <span class="amt num">${tl(p.amount)}</span>
           <span class="pct">${PAY_SHORT[p.payment_method] || "Kart"}</span>
+        </div>`).join("")}
+    </div>`;
+}
+
+function renderIkram(r) {
+  const el = document.getElementById("ikram");
+  if (!r.ikram_orders.length) { el.innerHTML = `<div class="empty">Bu dönemde ikram yok</div>`; return; }
+  el.innerHTML = `
+    <div class="bf-head"><span class="big num">${tl(r.ikram_total)}</span><span class="amt">${r.ikram_count} adisyon</span></div>
+    <div class="legend">
+      ${r.ikram_orders.map(o => `
+        <div class="legend-row">
+          <span class="swatch" style="background:#8A4B7A"></span>
+          <span class="name">${esc(o.table_number)}${o.ikram_note ? `<small>${esc(o.ikram_note)}</small>` : ""}</span>
+          <span class="amt num">${tl(o.total)}</span>
+          <span class="pct">${esc(o.waiter || "")}</span>
         </div>`).join("")}
     </div>`;
 }

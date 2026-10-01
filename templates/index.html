@@ -109,7 +109,7 @@
 
       <div class="status-filter">
         <button class="filter-btn active" data-filter="Aktif">Aktif</button>
-        <button class="filter-btn" data-filter="Ödendi">Ödendi</button>
+        <button class="filter-btn" data-filter="Ödendi">Ödendi / İkram</button>
         <button class="filter-btn" data-filter="all">Tümü</button>
       </div>
 
@@ -593,6 +593,22 @@
           </svg>
           <span>Karma</span>
         </button>
+        <button class="payment-opt ikram" onclick="showIkramForm()">
+          <!-- Lucide: gift -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/>
+            <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>
+          </svg>
+          <span>İkram — ücret alınmadı</span>
+        </button>
+      </div>
+      <div id="ikram-form" class="hidden">
+        <p class="split-total-info">İşletme sahibinin misafiri: hesap ücretsiz kapanır, kasaya girmez. Z raporunda <strong>İkram</strong> olarak ayrı görünür.</p>
+        <div class="form-row"><label>Kimin misafiri? <span class="label-hint">(isteğe bağlı)</span></label><input id="ikram-note" type="text" maxlength="60" placeholder="Örn. Patronun misafiri — Ahmet Bey" /></div>
+        <div class="form-row">
+          <button class="btn primary full-width" onclick="confirmIkram()">İkram Olarak Kapat</button>
+          <button class="btn full-width" style="margin-top:6px" onclick="hideIkramForm()">← Geri</button>
+        </div>
       </div>
       <div id="split-payment-form" class="hidden">
         <p class="split-total-info">Toplam: <strong id="split-total-display"></strong></p>

@@ -1081,6 +1081,17 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
 .payment-opt.nakit { color: var(--c-nakit); }
 .payment-opt.kart  { color: var(--c-kart); }
 .payment-opt.karma { color: var(--gold-dark); }
+.payment-opt.ikram {
+  grid-column: 1 / -1;
+  flex-direction: row; justify-content: center; gap: 10px;
+  padding: 12px 10px;
+  color: #8A4B7A;
+}
+.payment-opt.ikram svg { width: 22px; height: 22px; }
+.ikram-label { flex: 1; color: #8A4B7A; font-weight: 600; font-size: 0.86rem; }
+.ikram-label small { display: block; color: var(--ink-3); font-weight: 500; font-size: 0.78rem; }
+.badge-ikram { background: rgba(138, 75, 122, 0.12); color: #8A4B7A; }
+.order-card.ikram { opacity: 0.92; }
 .payment-opt:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(33, 28, 18, 0.10); }
 .payment-opt:active { transform: scale(0.97); }
 

@@ -255,9 +255,13 @@
   </div>
 
   <div class="receipt-status">
+    {% if order.status == 'İkram' %}
+    <span class="status-badge odendi">İkram — ücret alınmadı</span>
+    {% else %}
     <span class="status-badge {{ 'odendi' if order.status == 'Ödendi' else 'aktif' }}">
       {{ 'Ödendi' if order.status == 'Ödendi' else 'Ödeme bekleniyor' }}
     </span>
+    {% endif %}
   </div>
 
   <div class="receipt-footer">
