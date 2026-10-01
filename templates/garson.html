@@ -371,11 +371,80 @@
     /* ── BUNGALOV ROW ── */
     .bungalov-row { display: none; margin-top: 8px; }
 
-    @media (max-width: 600px) {
-      .order-panel { width: 270px; }
-      .menu-items  { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); padding: 6px 12px 12px; }
+    /* ── SEPET ÇUBUĞU (yalnızca telefonda) ── */
+    .cart-bar, .sheet-head, .sheet-backdrop { display: none; }
+
+    @media (max-width: 700px) {
+      .header-sub { display: none; }
+      .layout { height: auto; flex: 1; }
+      .menu-panel { overflow: visible; }
+      .menu-items {
+        overflow: visible;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 6px 12px calc(96px + env(safe-area-inset-bottom, 0px));
+      }
       .search-bar { padding: 12px 12px 4px; }
       .category-tabs { padding: 8px 12px 10px; }
+      .menu-item-card { padding: 12px 11px; min-height: 96px; }
+
+      /* iOS'ta odaklanınca sayfanın yakınlaşmaması için 16px */
+      .search-bar input, .order-meta select, .order-notes-input, .bungalov-row select, #garson-select { font-size: 16px; }
+
+      /* Sipariş paneli alttan açılan sayfa */
+      .order-panel {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        width: auto; max-height: 88dvh;
+        z-index: 50;
+        background: var(--glass-strong);
+        border-left: none;
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -12px 40px rgba(33, 28, 18, 0.18);
+        transform: translateY(105%);
+        transition: transform 0.28s cubic-bezier(.2,.8,.2,1);
+      }
+      body.sheet-open .order-panel { transform: translateY(0); }
+      body.sheet-open { overflow: hidden; }
+
+      .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 0; }
+      .sheet-title { font-size: 1rem; font-weight: 700; }
+      .sheet-close {
+        width: 34px; height: 34px; border-radius: 50%; border: none;
+        background: rgba(33, 28, 18, 0.07); color: var(--ink-2);
+        font-size: 1.1rem; cursor: pointer;
+      }
+      .sheet-backdrop {
+        position: fixed; inset: 0; z-index: 40;
+        background: rgba(33, 28, 18, 0.32);
+      }
+      body.sheet-open .sheet-backdrop { display: block; }
+
+      .cart-bar {
+        display: flex; align-items: center; gap: 12px;
+        position: fixed; left: 12px; right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        z-index: 30;
+        padding: 12px 14px 12px 16px;
+        border: none; border-radius: 16px;
+        background: var(--olive); color: var(--cream);
+        box-shadow: 0 10px 28px rgba(30, 59, 38, 0.35);
+        font-size: 0.95rem; cursor: pointer; text-align: left;
+      }
+      .cart-bar-count {
+        min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
+        background: rgba(248, 243, 230, 0.18);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.85rem;
+      }
+      .cart-bar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cart-bar-table { opacity: 0.75; font-size: 0.82rem; }
+      .cart-bar-total { font-weight: 700; font-size: 1.05rem; }
+      .cart-bar.empty { background: rgba(33, 28, 18, 0.55); box-shadow: none; }
+
+      .toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+    }
+
+    @media (max-width: 360px) {
+      .garson-label { display: none; }
     }
 
     /* ── PIN EKRANI ── */
@@ -518,7 +587,11 @@
   </div>
 
   <!-- Sipariş Paneli -->
-  <div class="order-panel">
+  <div class="order-panel" id="order-panel">
+    <div class="sheet-head">
+      <span class="sheet-title">Sipariş</span>
+      <button class="sheet-close" onclick="closeSheet()" aria-label="Kapat">✕</button>
+    </div>
     <div class="order-panel-header">
       <div id="active-order-banner" class="active-order-banner hidden">
         <div class="active-order-info">
@@ -532,7 +605,7 @@
       </div>
 
       <div class="order-meta">
-        <select id="table-select" onchange="checkActiveOrder()">
+        <select id="table-select" onchange="checkActiveOrder(); updateCartBar()">
           <option value="">Masa Seç</option>
           <optgroup label="Sağ">
             <option>sağ 1</option><option>sağ 2</option><option>sağ 3</option>
@@ -582,6 +655,13 @@
   </div>
 
 </div>
+
+<div class="sheet-backdrop" onclick="closeSheet()"></div>
+<button class="cart-bar empty" id="cart-bar" onclick="openSheet()">
+  <span class="cart-bar-count" id="cart-bar-count">0</span>
+  <span class="cart-bar-text"><span id="cart-bar-label">Sepet boş</span> <span class="cart-bar-table" id="cart-bar-table"></span></span>
+  <span class="cart-bar-total" id="cart-bar-total">₺0</span>
+</button>
 
 <div class="toast" id="toast"></div>
 
@@ -719,6 +799,7 @@ async function init() {
   renderCategories();
   renderItems();
   renderBungalovSelect();
+  updateCartBar();
 
   // Garson seçimini localStorage'dan geri yükle
   const saved = localStorage.getItem("garson");
@@ -797,6 +878,7 @@ function renderCart() {
   if (!entries.length) {
     container.innerHTML = `<div class="order-empty"><div class="order-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div>Henüz ürün eklenmedi</div></div>`;
     document.getElementById("cart-total").textContent = "₺0";
+    updateCartBar();
     return;
   }
 
@@ -814,7 +896,24 @@ function renderCart() {
 
   const total = entries.reduce((s, [, i]) => s + i.price * i.quantity, 0);
   document.getElementById("cart-total").textContent = "₺" + total.toLocaleString("tr-TR");
+  updateCartBar();
 }
+
+/* ── TELEFON: alttaki sepet çubuğu ve açılır sipariş sayfası ── */
+function updateCartBar() {
+  const entries = Object.values(cart);
+  const count   = entries.reduce((s, i) => s + i.quantity, 0);
+  const total   = entries.reduce((s, i) => s + i.price * i.quantity, 0);
+  const table   = document.getElementById("table-select").value;
+  document.getElementById("cart-bar").classList.toggle("empty", !count);
+  document.getElementById("cart-bar-count").textContent = count;
+  document.getElementById("cart-bar-label").textContent = count ? "Sepeti gör" : "Sepet boş";
+  document.getElementById("cart-bar-table").textContent = table ? "· " + table : "· masa seçilmedi";
+  document.getElementById("cart-bar-total").textContent = "₺" + total.toLocaleString("tr-TR");
+}
+
+function openSheet()  { document.body.classList.add("sheet-open"); }
+function closeSheet() { document.body.classList.remove("sheet-open"); }
 
 function clearCart() {
   cart = {};
@@ -867,6 +966,7 @@ async function submitOrder() {
       if (res.ok) {
         showToast(`✓ Siparişe eklendi — ${table}`);
         clearCart();
+        closeSheet();
         document.getElementById("notes-input").value = "";
         await checkActiveOrder();
       } else {
@@ -881,6 +981,7 @@ async function submitOrder() {
       if (res.ok) {
         showToast(`✓ Sipariş gönderildi — ${table}`);
         clearCart();
+        closeSheet();
         document.getElementById("notes-input").value = "";
         await checkActiveOrder();
       } else {
