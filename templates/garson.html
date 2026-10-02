@@ -151,6 +151,36 @@
     .cat-btn:hover { background: rgba(255, 255, 255, 0.9); color: var(--ink); }
     .cat-btn.active { background: var(--olive); color: var(--cream); border-color: transparent; }
 
+    /* Açık masalar şeridi — dokununca masa seçilir */
+    .open-tables {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .open-tables::-webkit-scrollbar { display: none; }
+    .open-tables-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; }
+    .open-table-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 11px;
+      border-radius: 10px;
+      border: 1px solid rgba(217, 164, 65, 0.55);
+      background: rgba(217, 164, 65, 0.16);
+      color: var(--ink);
+      font-size: 0.84rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      flex-shrink: 0;
+      text-transform: capitalize;
+    }
+    .open-table-btn::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold-dark); }
+    .open-table-btn .ot-total { font-weight: 500; color: var(--ink-2); }
+    .open-table-btn.selected { background: var(--gold); border-color: var(--gold-dark); }
+    .open-table-btn.selected::before { background: var(--ink); }
+
     .menu-items {
       flex: 1;
       overflow-y: auto;
@@ -579,6 +609,7 @@
     <div class="search-bar">
       <input type="text" id="search-input" placeholder="Ürün ara..." oninput="filterItems()" />
     </div>
+    <div class="open-tables hidden" id="open-tables"></div>
     <div class="category-tabs" id="category-tabs"></div>
     <div class="menu-items" id="menu-items"></div>
   </div>
@@ -602,7 +633,7 @@
       </div>
 
       <div class="order-meta">
-        <select id="table-select" onchange="checkActiveOrder(); updateCartBar()">
+        <select id="table-select" onchange="checkActiveOrder(); updateCartBar(); renderOpenTables()">
           <option value="">Masa Seç</option>
           <optgroup label="Sağ">
             <option>sağ 1</option><option>sağ 2</option><option>sağ 3</option>
@@ -674,6 +705,7 @@ let orderMode     = "new";
 let pinWaiter     = "";
 let pinValue      = "";
 let currentWaiter = "";   // yalnızca doğru PIN girilince değişir
+let openTables    = [];   // açık siparişi olan masalar (şerit + listedeki ● işareti)
 
 async function initPin() {
   const waiters = await fetch("/api/waiters").then(r => r.json());
@@ -819,6 +851,49 @@ async function init() {
   renderItems();
   renderBungalovSelect();
   updateCartBar();
+  // Listedeki masaların değeri yazısından gelsin — ● işareti eklenince değer değişmesin
+  document.querySelectorAll("#table-select option").forEach(o => { o.value = o.value; o.dataset.label = o.textContent; });
+  await loadOpenTables();
+  setInterval(loadOpenTables, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loadOpenTables(); });
+}
+
+async function loadOpenTables() {
+  try {
+    openTables = await fetch("/api/orders/active-tables").then(r => r.json());
+  } catch {
+    return;
+  }
+  renderOpenTables();
+}
+
+function renderOpenTables() {
+  const selected = document.getElementById("table-select").value;
+  const strip    = document.getElementById("open-tables");
+  strip.classList.toggle("hidden", !openTables.length);
+  strip.innerHTML = `<span class="open-tables-label">Açık masalar</span>` + openTables.map(t => `
+    <button class="open-table-btn ${t.table_number === selected ? "selected" : ""}" onclick="pickOpenTable('${esc(t.table_number)}')">
+      ${esc(t.table_number)} <span class="ot-total">₺${Number(t.total || 0).toLocaleString("tr-TR")}</span>
+    </button>`).join("");
+
+  const open = new Set(openTables.map(t => t.table_number));
+  document.querySelectorAll("#table-select option").forEach(o => {
+    if (o.value) o.textContent = (open.has(o.value) ? "● " : "") + o.dataset.label;
+  });
+}
+
+async function pickOpenTable(table) {
+  const sel = document.getElementById("table-select");
+  if (![...sel.options].some(o => o.value === table)) {
+    const o = new Option(table, table);
+    o.dataset.label = table;
+    sel.add(o);
+  }
+  sel.value = table;
+  await checkActiveOrder();
+  updateCartBar();
+  renderOpenTables();
+  openSheet();
 }
 
 function renderCategories() {
@@ -1006,6 +1081,7 @@ async function submitOrder() {
 
   btn.disabled = false;
   updateSubmitBtn();
+  loadOpenTables();
 }
 
 function showToast(msg, type = "") {

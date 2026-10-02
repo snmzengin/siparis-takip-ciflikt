@@ -1120,6 +1120,20 @@ def active_order_by_table():
     return jsonify(o)
 
 
+@app.route("/api/orders/active-tables")
+def active_tables():
+    """Garson ekranındaki "Açık masalar" şeridi için: açık siparişi olan her masa."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT o.id, o.table_number, o.total, o.waiter, o.created_at,
+                      COALESCE(SUM(oi.quantity), 0) AS item_count
+               FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id
+               WHERE o.status='Aktif'
+               GROUP BY o.id ORDER BY o.created_at"""
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/api/orders/<int:order_id>/items", methods=["POST"])
 def add_items_to_order(order_id):
     data  = request.json
