@@ -2,7 +2,7 @@
 aynı sayfanın sunucudaki adresine yönlendirir."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SUNUCU = "http://45.84.191.102"
+SUNUCU = "https://siparis.sapancaciftlikrestaurant.com"
 
 
 class Yonlendir(BaseHTTPRequestHandler):
