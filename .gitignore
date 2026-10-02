@@ -20,3 +20,4 @@ print_agent/print_agent_local.py
 
 # Veritabanı yedekleri
 yedek/
+print_agent/*.bak
