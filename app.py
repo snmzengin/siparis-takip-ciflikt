@@ -26,6 +26,12 @@ def tr_lower(s):
     return s.replace("İ", "i").replace("I", "ı").lower()
 
 
+def is_hot_drink(item_name):
+    """Adında çay/kahve geçen ürün — raporda "Çay & Kahve"ye girer, kahvaltı porsiyonu sayılmaz."""
+    name = tr_lower(item_name)
+    return "çay" in name or "kahve" in name
+
+
 def is_pizza_category(cat):
     return any(k in tr_lower(cat or "") for k in PIZZA_KEYWORDS)
 
@@ -511,8 +517,7 @@ def _summary_for_range(start, end, prev_start, prev_end):
         categories = {r["name"]: r["category"] for r in conn.execute("SELECT name, category FROM menu_items")}
     drinks = {"mesrubat": [], "sicak": []}
     for it in report["items"]:
-        name = tr_lower(it["item_name"])
-        if "çay" in name or "kahve" in name:
+        if is_hot_drink(it["item_name"]):
             drinks["sicak"].append(it)
         elif "içecek" in tr_lower(categories.get(it["item_name"]) or ""):
             drinks["mesrubat"].append(it)
@@ -533,7 +538,8 @@ def _summary_for_range(start, end, prev_start, prev_end):
     items_total = sum(i["total_amount"] or 0 for i in report["items"])
     report.update({
         "breakfast_items": breakfast_items,
-        "breakfast_qty":   sum(i["total_qty"] for i in breakfast_items),
+        # Porsiyon = kahvaltı tabağı; kategorideki "Kahve (Kahvaltı)" gibi içecekler tutara girer ama porsiyon sayılmaz
+        "breakfast_qty":   sum(i["total_qty"] for i in breakfast_items if not is_hot_drink(i["item_name"])),
         "breakfast_total": breakfast_total,
         "dinner_total":    round(max(0, items_total - breakfast_total), 2),
         "prev_total":    prev["total_amount"],
