@@ -181,6 +181,42 @@
     .open-table-btn.selected { background: var(--gold); border-color: var(--gold-dark); }
     .open-table-btn.selected::before { background: var(--ink); }
 
+    /* Adisyon penceresi — açık masanın içeriği, sayfadan çıkmadan */
+    .adisyon-modal {
+      position: fixed; inset: 0; z-index: 900;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+      background: rgba(33, 28, 18, 0.42);
+    }
+    .adisyon-card {
+      width: 100%; max-width: 420px; max-height: 86dvh;
+      display: flex; flex-direction: column;
+      background: var(--paper);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(33, 28, 18, 0.28);
+      overflow: hidden;
+    }
+    .adisyon-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 18px 12px; border-bottom: 1px solid var(--line); }
+    .adisyon-table { font-size: 1.25rem; font-weight: 700; text-transform: capitalize; color: var(--ink); }
+    .adisyon-meta { font-size: 0.82rem; color: var(--ink-3); margin-top: 3px; }
+    .adisyon-close { border: 0; background: var(--line); color: var(--ink-2); width: 32px; height: 32px; border-radius: 50%; font-size: 0.95rem; cursor: pointer; flex-shrink: 0; }
+    .adisyon-items { overflow-y: auto; padding: 6px 18px; }
+    .adisyon-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: baseline; padding: 9px 0; border-bottom: 1px dashed var(--line-2); font-size: 0.95rem; }
+    .adisyon-row:last-child { border-bottom: 0; }
+    .adisyon-qty { font-weight: 700; color: var(--accent); }
+    .adisyon-name { color: var(--ink); }
+    .adisyon-unit { display: block; font-size: 0.78rem; color: var(--ink-3); }
+    .adisyon-price { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .adisyon-note { margin: 4px 18px 0; padding: 8px 10px; border-radius: 10px; background: rgba(217, 164, 65, 0.14); font-size: 0.85rem; color: var(--ink-2); }
+    .adisyon-sum { padding: 12px 18px 4px; font-size: 0.9rem; color: var(--ink-2); }
+    .adisyon-sum div { display: flex; justify-content: space-between; padding: 2px 0; }
+    .adisyon-sum .adisyon-total { font-size: 1.15rem; font-weight: 700; color: var(--ink); padding-top: 6px; }
+    .adisyon-actions { display: flex; gap: 8px; padding: 12px 18px calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .adisyon-actions button { flex: 1; padding: 13px; border-radius: 12px; font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .adisyon-add { background: var(--accent); color: #fff; border: 0; }
+    .adisyon-print { background: transparent; color: var(--ink); border: 1px solid var(--line-2); }
+    .adisyon-empty { padding: 24px 0; text-align: center; color: var(--ink-3); }
+
     .menu-items {
       flex: 1;
       overflow-y: auto;
@@ -691,6 +727,25 @@
   <span class="cart-bar-total" id="cart-bar-total">₺0</span>
 </button>
 
+<div class="adisyon-modal hidden" id="adisyon-modal" onclick="if (event.target === this) closeAdisyon()">
+  <div class="adisyon-card" role="dialog" aria-modal="true" aria-labelledby="adisyon-table">
+    <div class="adisyon-head">
+      <div>
+        <div class="adisyon-table" id="adisyon-table"></div>
+        <div class="adisyon-meta" id="adisyon-meta"></div>
+      </div>
+      <button class="adisyon-close" onclick="closeAdisyon()" aria-label="Kapat">✕</button>
+    </div>
+    <div class="adisyon-items" id="adisyon-items"></div>
+    <div id="adisyon-note"></div>
+    <div class="adisyon-sum" id="adisyon-sum"></div>
+    <div class="adisyon-actions">
+      <button class="adisyon-add" onclick="addToAdisyonTable()">+ Ürün Ekle</button>
+      <button class="adisyon-print" onclick="printAdisyon()">Adisyonu Aç</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -818,8 +873,87 @@ function setModeAdd() {
 }
 
 function openAdisyon() {
-  if (activeOrderId) window.open(`/adisyon/${activeOrderId}`, "_blank");
+  const table = document.getElementById("table-select").value;
+  if (table) showAdisyon(table);
 }
+
+// ── Adisyon penceresi ─────────────────────────────────────────────
+let adisyonOrder = null;
+
+const tl = n => "₺" + Number(n || 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+
+async function showAdisyon(table) {
+  let order;
+  try {
+    order = await fetch(`/api/orders/active-by-table?table=${encodeURIComponent(table)}`).then(r => r.json());
+  } catch {
+    return showToast("Bağlantı hatası", "error");
+  }
+  if (!order) {
+    loadOpenTables();
+    return showToast(`${table} masasında açık sipariş yok`, "error");
+  }
+  adisyonOrder = order;
+
+  // created_at UTC tutuluyor — "Z" ekleyip telefonun saatine çeviriyoruz
+  const opened  = new Date(order.created_at.replace(" ", "T") + "Z");
+  const minutes = Math.max(0, Math.round((Date.now() - opened) / 60000));
+  const since   = minutes < 60 ? `${minutes} dk` : `${Math.floor(minutes / 60)} sa ${minutes % 60} dk`;
+  const clock   = opened.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
+  document.getElementById("adisyon-table").textContent = order.table_number;
+  document.getElementById("adisyon-meta").textContent =
+    `${order.waiter || "—"} · açılış ${clock} (${since} önce)`;
+
+  document.getElementById("adisyon-items").innerHTML = order.items.length
+    ? order.items.map(i => `
+      <div class="adisyon-row">
+        <span class="adisyon-qty">${i.quantity}×</span>
+        <span class="adisyon-name">${esc(i.item_name)}${i.quantity > 1 ? `<span class="adisyon-unit">${tl(i.item_price)} / adet</span>` : ""}</span>
+        <span class="adisyon-price">${tl(i.item_price * i.quantity)}</span>
+      </div>`).join("")
+    : `<div class="adisyon-empty">Bu adisyonda ürün yok</div>`;
+
+  document.getElementById("adisyon-note").innerHTML = order.notes
+    ? `<div class="adisyon-note"><b>Not:</b> ${esc(order.notes)}</div>` : "";
+
+  const itemsTotal = order.items.reduce((s, i) => s + i.item_price * i.quantity, 0);
+  const discount   = Number(order.discount || 0);
+  document.getElementById("adisyon-sum").innerHTML =
+    (discount > 0 ? `<div><span>Ara toplam</span><span>${tl(itemsTotal)}</span></div>
+                     <div><span>İndirim</span><span>−${tl(discount)}</span></div>` : "") +
+    `<div class="adisyon-total"><span>Toplam</span><span>${tl(order.total)}</span></div>`;
+
+  document.getElementById("adisyon-modal").classList.remove("hidden");
+}
+
+function closeAdisyon() {
+  document.getElementById("adisyon-modal").classList.add("hidden");
+}
+
+// Bu masanın siparişine ürün eklemek için masayı seçip menüye dön
+async function addToAdisyonTable() {
+  const table = adisyonOrder.table_number;
+  closeAdisyon();
+  closeSheet();
+  const sel = document.getElementById("table-select");
+  if (![...sel.options].some(o => o.value === table)) {
+    const o = new Option(table, table);
+    o.dataset.label = table;
+    sel.add(o);
+  }
+  sel.value = table;
+  await checkActiveOrder();
+  updateCartBar();
+  renderOpenTables();
+  showToast(`${table} seçildi — ürünleri ekleyin`);
+}
+
+function printAdisyon() {
+  if (adisyonOrder) window.open(`/adisyon/${adisyonOrder.id}`, "_blank");
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAdisyon(); });
 
 function setModeNew() {
   orderMode = "new";
@@ -872,7 +1006,7 @@ function renderOpenTables() {
   const strip    = document.getElementById("open-tables");
   strip.classList.toggle("hidden", !openTables.length);
   strip.innerHTML = `<span class="open-tables-label">Açık masalar</span>` + openTables.map(t => `
-    <button class="open-table-btn ${t.table_number === selected ? "selected" : ""}" onclick="pickOpenTable('${esc(t.table_number)}')">
+    <button class="open-table-btn ${t.table_number === selected ? "selected" : ""}" onclick="showAdisyon('${esc(t.table_number)}')">
       ${esc(t.table_number)} <span class="ot-total">₺${Number(t.total || 0).toLocaleString("tr-TR")}</span>
     </button>`).join("");
 
@@ -880,20 +1014,6 @@ function renderOpenTables() {
   document.querySelectorAll("#table-select option").forEach(o => {
     if (o.value) o.textContent = (open.has(o.value) ? "● " : "") + o.dataset.label;
   });
-}
-
-async function pickOpenTable(table) {
-  const sel = document.getElementById("table-select");
-  if (![...sel.options].some(o => o.value === table)) {
-    const o = new Option(table, table);
-    o.dataset.label = table;
-    sel.add(o);
-  }
-  sel.value = table;
-  await checkActiveOrder();
-  updateCartBar();
-  renderOpenTables();
-  openSheet();
 }
 
 function renderCategories() {
