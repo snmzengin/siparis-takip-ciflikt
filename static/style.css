@@ -1544,6 +1544,10 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
   .printer-settings .form-row { padding-left: 18px; padding-right: 18px; }
   .printer-settings > .btn, .printer-settings > .printer-status-msg,
   .printer-settings > p, .agent-token-box { margin-left: 18px; margin-right: 18px; }
+  /* Konaklama tahsilat düğmeleri kartın dışına taşmasın — üç eşit sütun */
+  .lodging-actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lodging-pay { padding: 12px 6px; min-height: 48px; white-space: normal; line-height: 1.2; font-size: 0.88rem; }
+  .lodging-form #lodging-msg:empty { display: none; }
 }
 
 /* ── HIDDEN ─────────────────────────────────────────────────────────────── */
