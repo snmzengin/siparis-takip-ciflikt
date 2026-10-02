@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect
+from urllib.parse import quote
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import socket
@@ -325,6 +326,61 @@ def ensure_secret_key():
                      (secrets.token_hex(32),))
         app.secret_key = conn.execute(
             "SELECT value FROM settings WHERE key='session_secret'").fetchone()["value"]
+
+
+# ── CİHAZ GİRİŞİ (site şifresi) ───────────────────────────────────────────────
+# Sistem internete açık olduğu için her cihaz bir kez site şifresiyle giriş yapar,
+# cihaz 1 yıl hatırlanır. Şifre `py site_sifresi.py` ile belirlenir; belirlenmemişse
+# (dükkândaki yerel kurulum) kapı kapalıdır.
+
+DEVICE_COOKIE      = "cihaz"
+DEVICE_COOKIE_DAYS = 365
+DEVICE_OPEN_PATHS  = ("/giris", "/static/", "/api/print-agent/")  # köprü kendi token'ıyla giriyor
+
+
+def _device_serializer():
+    from itsdangerous import URLSafeSerializer
+    return URLSafeSerializer(app.secret_key, salt="cihaz-girisi")
+
+
+def _device_token(pw_hash):
+    # Şifre değişince tüm cihazların girişi düşsün diye hash'in parmak izi imzalanır
+    return _device_serializer().dumps({"v": pw_hash[-16:]})
+
+
+@app.before_request
+def require_device_login():
+    if request.path.startswith(DEVICE_OPEN_PATHS):
+        return
+    pw_hash = get_setting("site_password_hash")
+    if not pw_hash:
+        return
+    try:
+        if _device_serializer().loads(request.cookies.get(DEVICE_COOKIE, "")).get("v") == pw_hash[-16:]:
+            return
+    except Exception:
+        pass
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Bu cihaz giriş yapmamış"}), 401
+    return redirect("/giris?next=" + quote(request.full_path.rstrip("?")))
+
+
+@app.route("/giris", methods=["GET", "POST"])
+def device_login():
+    nxt = request.values.get("next") or "/"
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        nxt = "/"
+    error = None
+    if request.method == "POST":
+        pw_hash = get_setting("site_password_hash")
+        if pw_hash and check_password_hash(pw_hash, request.form.get("password", "")):
+            resp = redirect(nxt)
+            resp.set_cookie(DEVICE_COOKIE, _device_token(pw_hash),
+                            max_age=DEVICE_COOKIE_DAYS * 86400, httponly=True, samesite="Lax",
+                            secure=request.headers.get("X-Forwarded-Proto", request.scheme) == "https")
+            return resp
+        error = "Şifre yanlış"
+    return render_template("giris.html", next=nxt, error=error)
 
 
 OWNER_SESSION_DAYS = 30
