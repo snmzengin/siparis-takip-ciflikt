@@ -168,6 +168,9 @@ def set_setting(key, value):
 
 LINE_WIDTH = 48  # 80mm termal yazıcı için tipik karakter genişliği
 
+BEEP_COUNT    = 4 # fiş gelince kaç kez ötsün (Xprinter: 1-9)
+BEEP_DURATION = 9  # her bipin uzunluğu (1-9, en uzunu 9) — ses seviyesi ayarlanamıyor
+
 ESC = b"\x1b"
 GS  = b"\x1d"
 
@@ -184,6 +187,7 @@ def build_ticket(title, table, waiter, items, notes):
     parts = [
         ESC + b"@",                 # yazıcıyı sıfırla
         b"\x1c.",                   # Çince karakter modunu kapat (Xprinter'da fabrika ayarı açık)
+        ESC + b"B" + bytes([BEEP_COUNT, BEEP_DURATION]),  # mutfağa haber ver: buzzer
         ESC + b"a" + bytes([1]),    # ortala
         ESC + b"!" + bytes([0x30]), # çift genişlik + çift yükseklik
         _p(title + "\n"),
